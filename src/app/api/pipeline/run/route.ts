@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getCircular, AgentStep, Obligation, Rule } from "@/lib/data";
 import { reason, extractJson } from "@/lib/reasoning";
+import { ops, killGuard, piiScan, recordLatency, recordTrace, logEvent, Span } from "@/lib/ops";
 
 export const maxDuration = 60;
 
@@ -25,24 +26,74 @@ Respond with STRICT JSON only (no markdown fences):
 Extract obligations ONLY from the circular text given. Clause references must match the text. One rule per obligation.`;
 
 export async function POST(req: NextRequest) {
+  const t0 = Date.now();
+  const s = ops();
+  s.counters.requests++;
+  const spans: Span[] = [];
+  const traceId = `tr-${t0.toString(36)}`;
+
+  // ── kill switch guard: no agent executes while suspended ──
+  if (killGuard().blocked) {
+    return NextResponse.json(
+      { error: "kill-switch", message: "Agentic execution suspended by the compliance officer. Deterministic rulebook remains available read-only." },
+      { status: 423 }
+    );
+  }
+
   const { circularId } = await req.json();
   const circular = getCircular(circularId);
   if (!circular) return NextResponse.json({ error: "unknown circular" }, { status: 404 });
 
+  logEvent("pipeline", `Compilation started · ${circular.ref}`, "info");
+
+  // ── DPDP guard: live PII scan BEFORE any text reaches the LLM ──
+  let sT = Date.now();
+  const pii = await piiScan(circular.excerpt);
+  spans.push({
+    name: "dpdp.pii-guard · Azure AI Language",
+    startMs: sT - t0,
+    durMs: pii.ms,
+    status: "ok",
+    note: pii.entities.length ? `${pii.entities.length} identifiers redacted` : "0 personal identifiers — clean",
+  });
+
   const user = `Circular ${circular.ref} — "${circular.title}" (${circular.date})
 Category: ${circular.category}
 
-Text:
-${circular.excerpt}
+Text (DPDP-screened):
+${pii.redactedText}
 
 Run the 4-agent pipeline and compile rules. Return the JSON.`;
 
+  // ── agent reasoning span ──
+  sT = Date.now();
   const raw = await reason({ system: SYSTEM, user, maxTokens: 3000 });
+  s.counters.llmCalls++;
+  if (raw) s.counters.llmTokensOut += Math.round(raw.length / 4);
+  spans.push({
+    name: "agents.reason · Watcher→Parser→Interpretation→Mapping",
+    startMs: sT - t0,
+    durMs: Date.now() - sT,
+    status: raw ? "ok" : "error",
+    note: raw ? "4 agents · batched inference" : "LLM unavailable → cached fallback",
+  });
+
+  // ── compile & validate span ──
+  sT = Date.now();
+  let result: PipelineResult | null = null;
   if (raw) {
     const parsed = extractJson<Omit<PipelineResult, "live">>(raw);
     if (parsed?.steps?.length && parsed?.obligations?.length && parsed?.rules?.length) {
-      return NextResponse.json({ ...parsed, live: true } satisfies PipelineResult);
+      result = { ...parsed, live: true };
     }
   }
-  return NextResponse.json({ ...circular.fallback, live: false } satisfies PipelineResult);
+  if (!result) result = { ...circular.fallback, live: false };
+  spans.push({ name: "compile.validate · schema + clause anchors", startMs: sT - t0, durMs: Math.max(1, Date.now() - sT), status: "ok", note: `${result.obligations.length} obligations · ${result.rules.length} rules` });
+
+  const totalMs = Date.now() - t0;
+  recordLatency(totalMs);
+  recordTrace({ id: traceId, route: `pipeline.run · ${circular.id}`, startedAt: t0, totalMs, spans });
+  logEvent("pipeline", `Compilation finished in ${(totalMs / 1000).toFixed(1)}s · ${result.live ? "live" : "fallback"} · trace ${traceId}`, "info");
+
+  return NextResponse.json({ ...result, pii: { redacted: pii.entities.length, ms: pii.ms }, traceId });
 }

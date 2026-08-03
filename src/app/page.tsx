@@ -119,6 +119,12 @@ export default function Home() {
               <a href="#pipeline" className="inline-flex items-center gap-2 rounded-2xl glass font-semibold text-navy px-7 py-4 hover:bg-white transition-colors">
                 See the pipeline
               </a>
+              <Link
+                href="/ops"
+                className="inline-flex items-center gap-2 rounded-2xl border border-line font-semibold text-navy px-7 py-4 hover:border-sky hover:text-blue transition-colors"
+              >
+                Platform Ops Console
+              </Link>
             </motion.div>
 
             <motion.p initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 3.4 }} className="mt-6 text-xs text-ink-faint">

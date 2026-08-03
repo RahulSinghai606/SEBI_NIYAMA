@@ -29,6 +29,9 @@ import {
   ListChecks,
   Landmark,
   RotateCcw,
+  Volume2,
+  Activity,
+  OctagonX,
 } from "lucide-react";
 import { circulars, Circular, AgentStep, Obligation, Rule } from "@/lib/data";
 
@@ -74,7 +77,28 @@ export default function DemoPage() {
   const [answer, setAnswer] = useState<string | null>(null);
   const [asking, setAsking] = useState(false);
   const [pendingReveal, setPendingReveal] = useState(false);
+  const [lang, setLang] = useState<"en" | "hi" | "gu" | "mr">("en");
+  const [killed, setKilled] = useState(false);
+  const [speaking, setSpeaking] = useState(false);
   const seqRef = useRef(4181);
+
+  // live kill-switch awareness — polled from the ops core
+  useEffect(() => {
+    let on = true;
+    const poll = async () => {
+      try {
+        const r = await fetch("/api/ops/kill", { cache: "no-store" });
+        const d = await r.json();
+        if (on) setKilled(Boolean(d.engaged));
+      } catch {}
+    };
+    poll();
+    const t = setInterval(poll, 3000);
+    return () => {
+      on = false;
+      clearInterval(t);
+    };
+  }, []);
 
   const appendLedger = (action: string, actor: string) => {
     const seq = ++seqRef.current;
@@ -117,6 +141,12 @@ export default function DemoPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ circularId: circular.id }),
       });
+      if (res.status === 423) {
+        setPhase("idle");
+        setKilled(true);
+        appendLedger("BLOCKED (HTTP 423) — kill switch engaged, no agent executed", "Platform Guard");
+        return;
+      }
       const data = await res.json();
       setSteps(data.steps);
       setObligations(data.obligations);
@@ -155,15 +185,46 @@ export default function DemoPage() {
       const res = await fetch("/api/ask", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ circularId: circular.id, question: q, obligations }),
+        body: JSON.stringify({ circularId: circular.id, question: q, obligations, lang }),
       });
+      if (res.status === 423) {
+        setKilled(true);
+        setAnswer("Execution suspended — kill switch engaged. Release it from the Ops Console to resume.");
+        setAsking(false);
+        return;
+      }
       const data = await res.json();
       setAnswer(data.reply);
-      appendLedger("Interpretation Agent answered with clause citation", "Interpretation Agent");
+      appendLedger(`Interpretation Agent answered with clause citation (${lang.toUpperCase()})`, "Interpretation Agent");
     } catch {
       setAnswer("The Interpretation Agent is momentarily unavailable — question logged to the review queue.");
     }
     setAsking(false);
+  };
+
+  // Azure Neural TTS — reads the agent's answer aloud in the selected language
+  const speak = async () => {
+    if (!answer || speaking) return;
+    setSpeaking(true);
+    try {
+      const r = await fetch("/api/tts", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: answer, lang }),
+      });
+      if (r.ok) {
+        const url = URL.createObjectURL(await r.blob());
+        const audio = new Audio(url);
+        audio.onended = () => {
+          setSpeaking(false);
+          URL.revokeObjectURL(url);
+        };
+        audio.onerror = () => setSpeaking(false);
+        await audio.play();
+        return;
+      }
+    } catch {}
+    setSpeaking(false);
   };
 
   const signOff = () => {
@@ -200,15 +261,51 @@ export default function DemoPage() {
             </span>
           </div>
           <div className="flex items-center gap-3">
-            <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-ok bg-ok/10 rounded-full px-3 py-1">
-              <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" />
-              REASONING LAYER ONLINE
-            </span>
-            <span className="text-[11px] text-ink-faint hidden md:block">synthetic corpus · demo environment</span>
+            <div className="flex gap-0.5 rounded-lg bg-bg border border-line p-0.5" aria-label="Answer language">
+              {(["en", "hi", "gu", "mr"] as const).map((l) => (
+                <button
+                  key={l}
+                  onClick={() => setLang(l)}
+                  className={`px-2 py-1 rounded-md text-[10px] font-bold tracking-wide transition-colors ${
+                    lang === l ? "bg-blue text-white" : "text-ink-faint hover:text-navy"
+                  }`}
+                >
+                  {l === "en" ? "EN" : l === "hi" ? "हिं" : l === "gu" ? "ગુ" : "मरा"}
+                </button>
+              ))}
+            </div>
+            <Link
+              href="/ops"
+              className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold text-navy border border-line rounded-full px-3 py-1 hover:border-sky hover:text-blue transition-colors"
+            >
+              <Activity className="w-3.5 h-3.5" /> Ops Console
+            </Link>
+            {killed ? (
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-alert bg-alert/10 rounded-full px-3 py-1">
+                <OctagonX className="w-3.5 h-3.5" />
+                EXECUTION SUSPENDED
+              </span>
+            ) : (
+              <span className="hidden sm:inline-flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-ok bg-ok/10 rounded-full px-3 py-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-ok animate-pulse" />
+                REASONING LAYER ONLINE
+              </span>
+            )}
             <Image src="/sebi-logo.png" alt="SEBI" width={60} height={26} className="h-7 w-auto" />
           </div>
         </div>
       </header>
+
+      {/* platform-wide kill banner */}
+      {killed && (
+        <div className="bg-alert text-white text-[12px] font-semibold py-2 px-4 flex items-center justify-center gap-2 flex-wrap">
+          <OctagonX className="w-4 h-4 shrink-0" />
+          KILL SWITCH ENGAGED — all agentic execution is suspended platform-wide. The deterministic rulebook remains read-only.
+          <Link href="/ops" className="underline underline-offset-2 font-bold">
+            Release from the Ops Console →
+          </Link>
+        </div>
+      )}
 
       <div className="mx-auto max-w-[1560px] px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[300px_1fr_1.05fr] gap-5">
         {/* ── LEFT: circular feed ── */}
@@ -271,10 +368,16 @@ export default function DemoPage() {
 
             <button
               onClick={compile}
-              disabled={phase === "compiling"}
-              className="mt-5 group w-full inline-flex items-center justify-center gap-2 rounded-2xl bg-blue text-white font-semibold py-4 card-elevate hover:bg-navy transition-all disabled:opacity-60 disabled:cursor-not-allowed"
+              disabled={phase === "compiling" || killed}
+              className={`mt-5 group w-full inline-flex items-center justify-center gap-2 rounded-2xl font-semibold py-4 card-elevate transition-all disabled:cursor-not-allowed ${
+                killed ? "bg-alert/15 text-alert border border-alert/40" : "bg-blue text-white hover:bg-navy disabled:opacity-60"
+              }`}
             >
-              {phase === "compiling" ? (
+              {killed ? (
+                <>
+                  <OctagonX className="w-5 h-5" /> Execution suspended — kill switch engaged
+                </>
+              ) : phase === "compiling" ? (
                 <>Compiling circular…</>
               ) : phase === "idle" ? (
                 <>
@@ -436,8 +539,20 @@ export default function DemoPage() {
                       )}
                       {answer && (
                         <div className="rounded-xl bg-surface border border-line p-3 text-xs text-ink-soft leading-relaxed">
-                          <span className="font-semibold text-navy">Interpretation Agent: </span>
-                          {answer}
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="font-semibold text-navy">Interpretation Agent ({lang.toUpperCase()}): </span>
+                            <button
+                              onClick={speak}
+                              disabled={speaking}
+                              className={`shrink-0 inline-flex items-center gap-1 text-[10px] font-bold rounded-full px-2.5 py-1 transition-colors ${
+                                speaking ? "bg-sky/15 text-sky animate-pulse" : "bg-blue/8 text-blue hover:bg-blue hover:text-white"
+                              }`}
+                              aria-label="Listen"
+                            >
+                              <Volume2 className="w-3 h-3" /> {speaking ? "Speaking…" : "Listen"}
+                            </button>
+                          </div>
+                          <p className="mt-1">{answer}</p>
                         </div>
                       )}
                       <button
