@@ -18,7 +18,7 @@ export async function POST(req: NextRequest) {
   const s = ops();
   s.counters.requests++;
 
-  if (killGuard().blocked) {
+  if (killGuard(req).blocked) {
     return NextResponse.json({ error: "kill-switch", message: "Agentic execution suspended." }, { status: 423 });
   }
 

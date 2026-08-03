@@ -33,7 +33,7 @@ export async function POST(req: NextRequest) {
   const traceId = `tr-${t0.toString(36)}`;
 
   // ── kill switch guard: no agent executes while suspended ──
-  if (killGuard().blocked) {
+  if (killGuard(req).blocked) {
     return NextResponse.json(
       { error: "kill-switch", message: "Agentic execution suspended by the compliance officer. Deterministic rulebook remains available read-only." },
       { status: 423 }

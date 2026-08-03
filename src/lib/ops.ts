@@ -85,9 +85,14 @@ export function setKill(engaged: boolean, by: string, reason: string) {
   );
 }
 
-export function killGuard(): { blocked: boolean } {
+// A signed-intent cookie backs the in-memory flag so the switch also holds
+// across serverless instances (each lambda has its own globalThis).
+export const KILL_COOKIE = "niyama-kill";
+
+export function killGuard(req?: { cookies: { get(name: string): { value: string } | undefined } }): { blocked: boolean } {
   const s = ops();
-  if (s.killSwitch.engaged) {
+  const cookieKill = req?.cookies.get(KILL_COOKIE)?.value === "1";
+  if (s.killSwitch.engaged || cookieKill) {
     s.counters.blockedByKill++;
     logEvent("kill-switch", "Agent invocation BLOCKED — execution suspended", "warn");
     return { blocked: true };
