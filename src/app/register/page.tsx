@@ -30,7 +30,9 @@ export default function RegisterPage() {
             <h1 className="mt-1 text-3xl font-bold md:text-4xl" style={{ fontFamily: "var(--font-display)" }}>Obligation Register</h1>
             <p className="mt-1 max-w-2xl text-sm text-[var(--ink-soft)]">Not retrieved text — a structured, testable register. Each record: clause anchor · verbatim source span · owner · frequency · <b>evidence contract</b> · <b>rule-as-code (the test)</b> · full provenance to the SEBI PDF.</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-wrap gap-2">
+            <Link href="/" className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">← Home</Link>
+            <Link href="/demo" className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">Demo</Link>
             <button onClick={() => download("json")} className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">↓ JSON</button>
             <button onClick={() => download("csv")} className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">↓ CSV</button>
             <Link href="/metrics" className="rounded-full bg-[var(--niyama-navy)] px-4 py-2 text-sm font-semibold text-white">Metrics →</Link>

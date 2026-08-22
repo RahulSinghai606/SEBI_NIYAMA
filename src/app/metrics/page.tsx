@@ -23,10 +23,19 @@ export default function MetricsPage() {
   const [d, setD] = useState<EvalFeed | null>(null);
   const [live, setLive] = useState<LiveRes | null>(null);
   const [liveBusy, setLiveBusy] = useState(false);
-  useEffect(() => { fetch("/api/eval", { cache: "no-store" }).then((r) => r.json()).then(setD).catch(() => {}); }, []);
+  useEffect(() => {
+    fetch("/api/eval", { cache: "no-store" }).then((r) => r.json()).then(setD).catch(() => {});
+    // restore a previous live-extraction result so it survives tab switches
+    try { const saved = sessionStorage.getItem("niyama_live"); if (saved) setLive(JSON.parse(saved)); } catch {}
+  }, []);
   const runLive = async () => {
     setLiveBusy(true); setLive(null);
-    try { const r = await fetch("/api/eval/live", { method: "POST" }); setLive(await r.json()); } catch { setLive({ live: false, reason: "network error" }); }
+    try {
+      const r = await fetch("/api/eval/live", { method: "POST" });
+      const j = await r.json();
+      setLive(j);
+      try { sessionStorage.setItem("niyama_live", JSON.stringify(j)); } catch {}
+    } catch { setLive({ live: false, reason: "network error" }); }
     setLiveBusy(false);
   };
   const m = d?.metrics;
@@ -42,7 +51,11 @@ export default function MetricsPage() {
             <h1 className="mt-1 text-3xl font-bold md:text-4xl" style={{ fontFamily: "var(--font-display)" }}>Gold-set evaluation</h1>
             <p className="mt-1 max-w-2xl text-sm text-[var(--ink-soft)]">A number beats a demo. NIYAMA&apos;s Obligation Register scored against an independently hand-labelled gold set — deterministic scorer, no LLM in the loop, reproducible live at <code className="rounded bg-[var(--bg-soft)] px-1">/api/eval</code>.</p>
           </div>
-          <Link href="/register" className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">Obligation Register →</Link>
+          <div className="flex gap-2">
+            <Link href="/" className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">← Home</Link>
+            <Link href="/demo" className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">Demo</Link>
+            <Link href="/register" className="rounded-full border border-[var(--line)] bg-white px-4 py-2 text-sm font-semibold text-[var(--niyama-navy)]">Obligation Register →</Link>
+          </div>
         </div>
 
         {/* corpus banner */}
