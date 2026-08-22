@@ -55,5 +55,20 @@ Officer's question: ${question}`;
   const reply =
     raw?.trim() ||
     "The Interpretation Agent is momentarily unavailable — the question has been logged to the review queue and will be answered before sign-off.";
-  return NextResponse.json({ reply, live: Boolean(raw) });
+
+  // ── Anti-hallucination guardrail: every clause the answer cites must exist in
+  //    the source text. Ungrounded citations are flagged, not trusted. ──
+  let grounded = true;
+  let unverified: string[] = [];
+  if (raw) {
+    const corpus = `${circular.excerpt} ${(obligations ?? circular.fallback.obligations).map((o) => o.clause).join(" ")}`;
+    const cited = Array.from(raw.matchAll(/\b(?:clause|para(?:graph)?)\s*(\d+(?:\.\d+)*)/gi)).map((m) => m[1]);
+    unverified = [...new Set(cited)].filter((num) => !corpus.includes(num));
+    grounded = unverified.length === 0;
+    if (!grounded) logEvent("interpretation", `Ungrounded citation flagged: ${unverified.join(", ")} not in source`, "warn");
+  }
+  const guardedReply = grounded
+    ? reply
+    : `${reply}\n\n⚠ Grounding check: cited ${unverified.map((u) => `clause ${u}`).join(", ")} could not be verified in the source text — treat as unconfirmed and check the circular directly.`;
+  return NextResponse.json({ reply: guardedReply, live: Boolean(raw), grounded, unverified });
 }

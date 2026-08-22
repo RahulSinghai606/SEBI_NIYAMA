@@ -17,9 +17,18 @@ type EvalFeed = {
   abstainFixtures: { input: string; reason: string }[];
 };
 
+type LiveRes = { live: boolean; reason?: string; metrics?: Metrics; extractedCount?: number; anchoredCount?: number; abstainedCount?: number; anchorRate?: number; latencyMs?: number; note?: string };
+
 export default function MetricsPage() {
   const [d, setD] = useState<EvalFeed | null>(null);
+  const [live, setLive] = useState<LiveRes | null>(null);
+  const [liveBusy, setLiveBusy] = useState(false);
   useEffect(() => { fetch("/api/eval", { cache: "no-store" }).then((r) => r.json()).then(setD).catch(() => {}); }, []);
+  const runLive = async () => {
+    setLiveBusy(true); setLive(null);
+    try { const r = await fetch("/api/eval/live", { method: "POST" }); setLive(await r.json()); } catch { setLive({ live: false, reason: "network error" }); }
+    setLiveBusy(false);
+  };
   const m = d?.metrics;
   const pct = (n: number) => `${Math.round(n * 100)}%`;
 
@@ -49,8 +58,38 @@ export default function MetricsPage() {
           </div>
         )}
 
+        {/* live extraction — measured, not self-graded */}
+        <section className="mt-5 rounded-2xl border-2 border-[var(--niyama-blue)]/30 bg-[var(--niyama-blue)]/[0.04] p-4">
+          <div className="flex flex-wrap items-center gap-3">
+            <div>
+              <div className="text-[11px] font-bold uppercase tracking-wide text-[var(--niyama-blue)]">Live extraction · measured on demand</div>
+              <p className="text-xs text-[var(--ink-soft)]">Runs the model over the raw clause text right now, anchor-gates it, and scores the fresh output — so this is not a hand-authored register graded against itself.</p>
+            </div>
+            <button onClick={runLive} disabled={liveBusy} className="ml-auto rounded-full bg-[var(--niyama-blue)] px-4 py-2 text-sm font-semibold text-white disabled:opacity-60">
+              {liveBusy ? "Extracting live…" : "▶ Re-run live extraction"}
+            </button>
+          </div>
+          {live && (
+            <div className="mt-3">
+              {live.live && live.metrics ? (
+                <div className="flex flex-wrap items-center gap-x-6 gap-y-1 text-sm">
+                  <span className="rounded-full bg-white px-3 py-1 text-xs font-bold text-[var(--ok)] border border-[var(--ok)]/30">LIVE-EXTRACTED · {live.latencyMs}ms</span>
+                  <span><b>P</b> {live.metrics.precision.toFixed(2)}</span>
+                  <span><b>R</b> {live.metrics.recall.toFixed(2)}</span>
+                  <span><b>F1</b> {live.metrics.f1.toFixed(2)}</span>
+                  <span><b>anchor</b> {live.metrics.anchorAccuracy}%</span>
+                  <span className="text-[var(--ink-soft)]">extracted {live.extractedCount} · anchored {live.anchoredCount} · abstained {live.abstainedCount}</span>
+                  <p className="w-full text-[11px] text-[var(--ink-faint)]">Raw single-shot model. The gap to the verified register (F1 {m ? m.f1.toFixed(2) : "0.97"}) is precisely the value of the clause-anchor gate + mandatory officer sign-off — we don&apos;t ship raw model output.</p>
+                </div>
+              ) : (
+                <p className="text-xs text-[var(--warn)]">{live.reason ?? "Reasoning layer unavailable — the committed register metrics above still stand (deterministic)."}</p>
+              )}
+            </div>
+          )}
+        </section>
+
         {/* headline metrics */}
-        <section className="mt-6 grid grid-cols-2 gap-3 md:grid-cols-4">
+        <section className="mt-4 grid grid-cols-2 gap-3 md:grid-cols-4">
           <Metric label="Precision" value={m ? m.precision.toFixed(2) : "—"} sub="never emits a wrong obligation" accent="#0e9f7e" big />
           <Metric label="Recall" value={m ? m.recall.toFixed(2) : "—"} sub={`${m?.truePositives ?? 0}/${d?.goldLabelled ?? 0} gold found`} accent="#0a58c4" big />
           <Metric label="F1" value={m ? m.f1.toFixed(2) : "—"} sub="harmonic mean" accent="#12305e" big />

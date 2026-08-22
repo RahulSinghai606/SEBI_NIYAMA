@@ -34,6 +34,9 @@ import {
   OctagonX,
 } from "lucide-react";
 import { circulars, Circular, AgentStep, Obligation, Rule } from "@/lib/data";
+import { generateAccounts, runControls } from "@/lib/controls";
+
+const CONTROL_RESULTS = runControls(generateAccounts());
 
 type Phase = "idle" | "compiling" | "review" | "active";
 type Tab = "graph" | "rules";
@@ -607,6 +610,29 @@ export default function DemoPage() {
                           </div>
                         ))}
                       </div>
+
+                      {/* executable rules — the gap is COMPUTED, not typed */}
+                      {circular.id === "running-account" && (
+                        <div className="rounded-2xl border border-blue/30 bg-blue/[0.04] p-4">
+                          <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-blue mb-0.5">Rules-as-Code · executed over 12,408 client accounts</p>
+                          <p className="text-[10px] text-ink-faint mb-3">The gap below is <b>computed by running the rule</b> over account data — not a typed literal. Deterministic &amp; reproducible.</p>
+                          <div className="space-y-1.5">
+                            {CONTROL_RESULTS.map((c) => (
+                              <div key={c.ruleId} className="flex items-center gap-2 text-[11px]">
+                                <span className="font-mono-code font-bold text-blue">{c.ruleId}</span>
+                                <span className="text-ink-faint">{c.clause}</span>
+                                <span className="ml-auto flex items-center gap-2">
+                                  <span className="text-ok">{c.passed.toLocaleString()} pass</span>
+                                  {c.pending > 0 && <span className="text-sky">{c.pending.toLocaleString()} pending</span>}
+                                  <span className={c.failed > 0 ? "text-warn font-bold" : "text-ink-faint"}>{c.failed.toLocaleString()} fail</span>
+                                  <span className={`rounded-full px-2 py-0.5 text-[9px] font-bold uppercase ${c.verdict === "gap" ? "bg-warn/10 text-warn" : c.verdict === "in-progress" ? "bg-sky/10 text-sky" : "bg-ok/10 text-ok"}`}>{c.verdict}</span>
+                                </span>
+                              </div>
+                            ))}
+                          </div>
+                          <p className="text-[10px] text-ink-faint mt-2">R-48.4 evaluated 12,408 accounts → <b className="text-warn">{CONTROL_RESULTS.find((c) => c.ruleId === "R-48.4")?.failed}</b> inactive credit balances not swept (sample: {CONTROL_RESULTS.find((c) => c.ruleId === "R-48.4")?.breachSample.slice(0, 3).join(", ")}…). This is the assertion executing — the DSL is a real test, not documentation.</p>
+                        </div>
+                      )}
 
                       <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-ink-faint pt-1">Compliance engine · evidence auto-binding</p>
                       {circular.engine.map((row, i) => {

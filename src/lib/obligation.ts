@@ -203,8 +203,15 @@ export type EvalResult = {
 // A predicted obligation matches a gold obligation when the clause anchor lines
 // up AND the action carries the gold's salient keywords — i.e. same obligation,
 // not just same paragraph. Deterministic; no LLM in the scorer.
+// Normalise a clause anchor to just its numeric path (48.1.1) so "Clause 48.1.1",
+// "clause 48.1.1", "Para 48.1.1" and "48.1.1" all compare equal — the live LLM
+// won't always echo the "Clause" prefix.
+function anchorKey(s: string): string {
+  const m = normalize(s).match(/\d+(?:\.\d+)*/);
+  return m ? m[0] : normalize(s).replace(/[^a-z0-9.]/g, "");
+}
 function matchesGold(pred: ObligationRecord, gold: GoldObligation): boolean {
-  const anchorOk = normalize(pred.clauseAnchor).replace(/[^a-z0-9.]/g, "") === normalize(gold.clauseAnchor).replace(/[^a-z0-9.]/g, "");
+  const anchorOk = anchorKey(pred.clauseAnchor) === anchorKey(gold.clauseAnchor);
   if (!anchorOk) return false;
   const action = normalize(pred.action);
   const hits = gold.actionKeywords.filter((k) => action.includes(normalize(k))).length;
