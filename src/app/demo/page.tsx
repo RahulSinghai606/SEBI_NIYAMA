@@ -80,6 +80,7 @@ export default function DemoPage() {
   const [lang, setLang] = useState<"en" | "hi" | "gu" | "mr">("en");
   const [killed, setKilled] = useState(false);
   const [speaking, setSpeaking] = useState(false);
+  const [amendOpen, setAmendOpen] = useState(false);
   const seqRef = useRef(4181);
 
   // live kill-switch awareness — polled from the ops core
@@ -122,11 +123,13 @@ export default function DemoPage() {
     setAnswer(null);
     setQuestion("");
     setTab("graph");
+    setAmendOpen(false);
     seqRef.current = 4181;
   };
 
   const compile = async () => {
     setPhase("compiling");
+    setAmendOpen(false);
     setSteps([]);
     setVisibleSteps(0);
     setObligations([]);
@@ -476,8 +479,13 @@ export default function DemoPage() {
 
                 <div className="flex-1 min-h-0 overflow-y-auto thin-scroll p-5 space-y-3">
                   {/* graph / rules */}
-                  {tab === "graph"
-                    ? obligations.map((o, i) => (
+                  {tab === "graph" ? (
+                    <>
+                      {/* beat 3 — the artifact */}
+                      <div className="rounded-2xl border border-sky/30 bg-sky/[0.05] px-4 py-2.5 text-[11px] text-ink-soft">
+                        <b className="text-navy">We don&apos;t answer questions about the circular — we turn it into objects.</b> Each record is the bridge: clause-anchored, owned, testable. Everything downstream — dashboards, alerts, audits — is software reading a structured record.
+                      </div>
+                      {obligations.map((o, i) => (
                         <motion.div key={o.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="rounded-2xl border border-line bg-bg p-4">
                           <div className="flex items-center gap-2 flex-wrap">
                             <span className="font-mono-code text-[11px] font-bold text-blue">{o.id}</span>
@@ -485,21 +493,37 @@ export default function DemoPage() {
                               <Link2 className="w-3 h-3" /> {o.clause}
                             </span>
                             <span className={`text-[9px] font-bold uppercase tracking-wider rounded-full px-2 py-0.5 ${SEV[o.severity]}`}>{o.severity}</span>
+                            {o.intermediary && <span className="text-[9px] font-semibold rounded-full px-2 py-0.5 bg-navy/8 text-navy">{o.intermediary}</span>}
                             <span className="ml-auto text-[10px] text-ink-faint">{o.frequency}</span>
                           </div>
                           <p className="text-sm font-medium text-navy mt-2 leading-snug">{o.action}</p>
-                          <div className="mt-2 grid sm:grid-cols-2 gap-2 text-[11px] text-ink-soft">
-                            <p><span className="text-ink-faint">Actor:</span> {o.actor}</p>
+                          <div className="mt-2 grid sm:grid-cols-2 gap-x-4 gap-y-1 text-[11px] text-ink-soft">
+                            <p><span className="text-ink-faint">Responsible role:</span> {o.actor}</p>
+                            <p><span className="text-ink-faint">Trigger:</span> {o.trigger ?? "—"}</p>
+                            <p><span className="text-ink-faint">Periodicity:</span> {o.frequency}</p>
                             <p><span className="text-ink-faint">Deadline:</span> {o.deadline}</p>
                           </div>
-                          <div className="mt-2 flex flex-wrap gap-1.5">
-                            {o.evidence.map((e) => (
-                              <span key={e} className="text-[10px] text-blue bg-blue/8 rounded-full px-2 py-0.5">{e}</span>
-                            ))}
+                          <div className="mt-2">
+                            <span className="text-[10px] text-ink-faint">Evidence required:</span>
+                            <div className="mt-1 flex flex-wrap gap-1.5">
+                              {o.evidence.map((e) => (
+                                <span key={e} className="text-[10px] text-blue bg-blue/8 rounded-full px-2 py-0.5">{e}</span>
+                              ))}
+                            </div>
                           </div>
+                          {o.test && <p className="mt-2 text-[11px] text-ink-soft"><span className="text-ink-faint">Verification test:</span> {o.test}</p>}
+                          {o.sourceSpan && (
+                            <div className="mt-2 rounded-lg bg-surface border border-line p-2 text-[11px] leading-relaxed">
+                              <span className="mr-1 rounded bg-sky/20 px-1 text-[9px] font-bold uppercase text-navy align-middle">source anchor</span>
+                              <span className="italic text-ink-soft">&ldquo;{o.sourceSpan}&rdquo;</span>
+                              {o.sourceUrl && <a href={o.sourceUrl} target="_blank" rel="noreferrer" className="ml-1 font-semibold text-blue whitespace-nowrap">view on sebi.gov.in ↗</a>}
+                            </div>
+                          )}
                         </motion.div>
-                      ))
-                    : rules.map((r, i) => (
+                      ))}
+                    </>
+                  ) : (
+                    rules.map((r, i) => (
                         <motion.div key={r.id} initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: i * 0.05 }} className="rounded-2xl border border-line bg-bg p-4">
                           <div className="flex items-center gap-2 flex-wrap mb-2">
                             <span className="font-mono-code text-[11px] font-bold text-blue">{r.id}</span>
@@ -509,7 +533,8 @@ export default function DemoPage() {
                           <pre className="rule-code">{r.code}</pre>
                           <p className="mt-2 text-[10px] text-ink-faint">compiles obligation <span className="font-mono-code text-blue">{r.obligationId}</span> · deterministic · versioned</p>
                         </motion.div>
-                      ))}
+                      ))
+                  )}
 
                   {/* review: ask + sign-off */}
                   {phase === "review" && (
@@ -561,7 +586,7 @@ export default function DemoPage() {
                       >
                         <CheckCheck className="w-5 h-5" /> Approve & activate rulebook v1.0
                       </button>
-                      <p className="text-[10px] text-ink-faint text-center">Sign-off is mandatory — no rule executes without it. Approval is written to the immutable trail.</p>
+                      <p className="text-[10px] text-ink-faint text-center leading-relaxed">The agent prepares; the Compliance Officer attests. Every assertion traces to a clause; every override is logged with a reason. <b className="text-ink-soft">Nothing is auto-filed to an exchange or SEBI</b> — sign-off is mandatory and written to the immutable trail.</p>
                     </div>
                   )}
 
@@ -626,6 +651,48 @@ export default function DemoPage() {
                           </motion.div>
                         );
                       })}
+
+                      {/* beat 6 — a new circular lands: live diff */}
+                      {circular.amendment && (
+                        <div className="mt-1 rounded-2xl border border-blue/30 bg-blue/[0.04] p-4">
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-blue">Dynamic translation · a new circular lands</p>
+                            {!amendOpen && (
+                              <button
+                                onClick={() => { setAmendOpen(true); appendLedger(`Amendment ingested: ${circular.amendment!.newCircularRef} — impact diff computed`, "Watcher Agent"); }}
+                                className="text-[11px] font-bold rounded-full px-3 py-1.5 bg-blue text-white hover:bg-navy transition-colors"
+                              >
+                                ▶ Drop the amendment
+                              </button>
+                            )}
+                          </div>
+                          {amendOpen && (
+                            <div className="mt-3 space-y-3">
+                              <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-[11px] text-ink-soft">
+                                <span className="font-semibold text-navy">{circular.amendment.headline}</span>
+                                <a href={circular.amendment.newCircularUrl} target="_blank" rel="noreferrer" className="font-semibold text-blue">{circular.amendment.newCircularRef} ↗</a>
+                                <span>Effective: {circular.amendment.effective}</span>
+                                <span className="ml-auto inline-flex items-center gap-1 rounded-full bg-ok/10 text-ok px-3 py-1 font-bold">issuance → action: {circular.amendment.gapHours}h</span>
+                              </div>
+                              {circular.amendment.changed.map((c, i) => (
+                                <div key={i} className="rounded-xl border border-line bg-surface p-3 text-[12px]">
+                                  <div className="font-mono-code text-[11px] font-bold text-navy">{c.clause}</div>
+                                  <div className="mt-2 grid md:grid-cols-2 gap-2">
+                                    <div className="rounded-lg border border-alert/30 bg-alert/[0.04] p-2"><span className="text-[9px] font-bold uppercase text-alert">was</span><p className="line-through decoration-alert/50 text-ink-soft">{c.was}</p></div>
+                                    <div className="rounded-lg border border-ok/40 bg-ok/[0.05] p-2"><span className="text-[9px] font-bold uppercase text-ok">now</span><p className="text-navy font-medium">{c.now}</p></div>
+                                  </div>
+                                  <div className="mt-2 space-y-1 text-[11px] text-ink-soft">
+                                    <p className="flex items-start gap-1.5"><AlertTriangle className="w-3.5 h-3.5 text-warn shrink-0 mt-0.5" /> <span><b>Control breaks:</b> {c.breaksControl}</span></p>
+                                    <p><b>SOP edit:</b> {c.sopEdit}</p>
+                                    <p><b>Owner:</b> {c.owner} · <b>By:</b> {c.by}</p>
+                                  </div>
+                                </div>
+                              ))}
+                              <p className="text-[10px] text-ink-faint">This is the gap between issuance and action — which obligations changed, which controls break, who owns each, by when. Measured in hours, not weeks.</p>
+                            </div>
+                          )}
+                        </div>
+                      )}
                     </>
                   )}
 

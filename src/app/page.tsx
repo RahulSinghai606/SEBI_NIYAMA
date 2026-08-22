@@ -116,9 +116,12 @@ export default function Home() {
                 Launch the live demo
                 <ArrowRight className="w-4 h-4 group-hover:translate-x-1 transition-transform" />
               </Link>
-              <a href="#pipeline" className="inline-flex items-center gap-2 rounded-2xl glass font-semibold text-navy px-7 py-4 hover:bg-white transition-colors">
-                See the pipeline
-              </a>
+              <Link href="/metrics" className="inline-flex items-center gap-2 rounded-2xl glass font-semibold text-navy px-7 py-4 hover:bg-white transition-colors">
+                See the numbers
+              </Link>
+              <Link href="/register" className="inline-flex items-center gap-2 rounded-2xl glass font-semibold text-navy px-7 py-4 hover:bg-white transition-colors">
+                Obligation Register
+              </Link>
               <Link
                 href="/ops"
                 className="inline-flex items-center gap-2 rounded-2xl border border-line font-semibold text-navy px-7 py-4 hover:border-sky hover:text-blue transition-colors"
@@ -189,19 +192,20 @@ ON FAIL raise(task, CRITICAL, OPS)`}
       <section className="relative py-28 bg-surface">
         <div className="mx-auto max-w-7xl px-6 grid md:grid-cols-2 gap-8">
           <motion.div {...fadeUp} className="rounded-3xl border border-line bg-bg p-10 card-elevate">
-            <p className="text-xs font-bold tracking-[0.25em] uppercase text-warn mb-4">Today</p>
-            <h3 className="font-display text-3xl font-semibold text-navy leading-snug">Compliance is read, remembered and hoped.</h3>
+            <p className="text-xs font-bold tracking-[0.25em] uppercase text-warn mb-4">The regulator&apos;s problem</p>
+            <h3 className="font-display text-3xl font-semibold text-navy leading-snug">One circular. Three hundred brokers. Divergent implementation.</h3>
             <p className="mt-4 text-ink-soft leading-relaxed">
-              Hundreds of circulars a year. Teams read PDFs, build spreadsheets, chase screenshots for auditors.
-              Weeks from circular to control — and every miss discovered at inspection time.
+              SEBI issues a circular; brokers arrive at slightly different answers on slightly different timelines.
+              The regulation was uniform — the implementation isn&apos;t. That is a <strong className="text-navy">supervision blind spot</strong> and an <strong className="text-navy">investor risk</strong>.
+              Why it stayed unsolved: <em>regulation lives as prose, compliance runs as systems</em>, and every intermediary bridges that gap by hand — slightly differently.
             </p>
           </motion.div>
           <motion.div {...fadeUp} transition={{ ...fadeUp.transition, delay: 0.1 }} className="rounded-3xl bg-gradient-to-br from-blue to-navy p-10 text-white card-elevate">
             <p className="text-xs font-bold tracking-[0.25em] uppercase text-sky mb-4">With NIYAMA</p>
-            <h3 className="font-display text-3xl font-semibold leading-snug">Regulation compiles. Compliance executes.</h3>
+            <h3 className="font-display text-3xl font-semibold leading-snug">We don&apos;t answer questions — we turn the circular into objects.</h3>
             <p className="mt-4 text-white/80 leading-relaxed">
-              Circulars become a living Obligation Graph, then deterministic Rules-as-Code — human-approved,
-              evidence-bound, hash-chained. Circular-to-action collapses from weeks to hours.
+              Each obligation becomes a machine-readable object — clause anchor, owner, periodicity, deadline, evidence contract, verification test.
+              That object is the bridge; dashboards, alerts and audits are just software reading a structured record. Human-approved, evidence-bound, hash-chained — circular-to-action in <strong className="text-white">hours</strong>.
             </p>
           </motion.div>
         </div>
@@ -216,6 +220,8 @@ ON FAIL raise(task, CRITICAL, OPS)`}
               Six stages. <span className="text-gradient">One unbroken chain of custody.</span>
             </h2>
             <p className="mt-4 text-ink-soft">From SEBI&apos;s PDF to a running control — every hop deterministic, every hop on the ledger.</p>
+            <p className="mt-3 text-[13px] text-ink-faint">ingest → segment by clause → classify obligation vs. context → extract to schema → resolve conflicts &amp; supersessions → map to systems → generate control + evidence request</p>
+            <p className="mt-4 inline-block rounded-full border border-blue/30 bg-blue/[0.06] px-4 py-1.5 text-xs font-bold text-navy">Guardrail — no clause anchor, no obligation. Nothing enters the register without a citation.</p>
           </motion.div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -296,6 +302,28 @@ ON FAIL raise(task, CRITICAL, OPS)`}
                 </motion.div>
               ))}
             </div>
+          </div>
+        </div>
+      </section>
+
+      {/* ───────────── SCALE & SEBI MANDATE (beat 8) ───────────── */}
+      <section className="relative py-28 bg-surface">
+        <div className="mx-auto max-w-7xl px-6">
+          <motion.div {...fadeUp} className="text-center max-w-2xl mx-auto mb-14">
+            <p className="text-xs font-semibold tracking-[0.3em] uppercase text-sky mb-4">Why this serves SEBI&apos;s mandate</p>
+            <h2 className="font-display text-4xl md:text-5xl font-semibold text-navy">Structured obligations change what&apos;s possible.</h2>
+          </motion.div>
+          <div className="grid md:grid-cols-2 gap-8">
+            <motion.div {...fadeUp} className="rounded-3xl border border-line bg-bg p-10 card-elevate">
+              <p className="text-xs font-bold tracking-[0.25em] uppercase text-blue mb-3">Market development</p>
+              <h3 className="font-display text-2xl font-semibold text-navy leading-snug">Same rigour for the two-person adviser and the top-ten broker.</h3>
+              <p className="mt-4 text-ink-soft leading-relaxed">Compliance rigour stops being a function of headcount. A small intermediary gets the same clause-anchored controls, evidence contracts and audit trail as the largest firm — lowering the cost of doing the right thing.</p>
+            </motion.div>
+            <motion.div {...fadeUp} transition={{ ...fadeUp.transition, delay: 0.1 }} className="rounded-3xl bg-gradient-to-br from-blue to-navy p-10 text-white card-elevate">
+              <p className="text-xs font-bold tracking-[0.25em] uppercase text-sky mb-3">Supervision</p>
+              <h3 className="font-display text-2xl font-semibold leading-snug">If obligations are structured, consistency becomes observable.</h3>
+              <p className="mt-4 text-white/80 leading-relaxed">When every intermediary compiles the same circular into the same structured objects, SEBI can see implementation consistency across the population — not just self-reported filings. Uniform regulation, finally, uniformly measurable.</p>
+            </motion.div>
           </div>
         </div>
       </section>

@@ -21,6 +21,30 @@ export type Obligation = {
   evidence: string[];
   category: string;
   severity: "critical" | "high" | "medium";
+  // ── the artifact fields (beat 3) — a machine-readable obligation object ──
+  intermediary?: string; // applicable intermediary category
+  trigger?: string; // what starts the clock
+  test?: string; // verification test (plain-language assertion)
+  sourceSpan?: string; // verbatim source anchor
+  sourceUrl?: string; // click-through to the actual SEBI document
+};
+
+// An amendment landing on an existing rulebook (beat 6) — the live diff.
+export type Amendment = {
+  headline: string;
+  newCircularRef: string;
+  newCircularUrl: string;
+  effective: string;
+  gapHours: number; // issuance → action, measured
+  changed: {
+    clause: string;
+    was: string;
+    now: string;
+    breaksControl: string; // control/rule that no longer holds
+    sopEdit: string; // SOP that must change
+    owner: string;
+    by: string;
+  }[];
 };
 
 export type Rule = {
@@ -48,52 +72,73 @@ export type Circular = {
   impact: "High" | "Medium";
   summary: string;
   excerpt: string;
+  intermediary?: string;
   fallback: {
     steps: AgentStep[];
     obligations: Obligation[];
     rules: Rule[];
   };
   engine: EngineRow[];
+  amendment?: Amendment;
 };
 
 export const circulars: Circular[] = [
   {
     id: "running-account",
-    ref: "SEBI/HO/MIRSD/MIRSD-PoD-1/P/CIR/2026/41",
-    title: "Settlement of Running Account of Clients' Funds",
-    date: "12 Jun 2026",
+    ref: "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2025/90",
+    title: "Settlement of Running Account of Client's Funds (Clause 48)",
+    date: "17 Jun 2025",
     category: "Client Assets",
     impact: "High",
+    intermediary: "Stock Broker (Trading Member)",
     summary:
-      "Mandates periodic settlement of clients' running accounts, upstreaming of client funds to clearing corporations, and retention-statement dispatch on every settlement.",
+      "Clause 48 of the SEBI Master Circular for Stock Brokers: settle client running accounts on exchange-stipulated dates, cap retention at 225% of margin liability, sweep inactive credit balances, and dispatch the retention statement within 5 working days.",
     excerpt:
-      "6.1 The settlement of the running account of clients' funds shall be done by the Trading Member (TM) after considering the End of Day (EOD) obligation of funds as on the date of settlement, on the first Friday of the quarter or month, as per the client's preference. 6.2 In case the first Friday is a trading holiday, such settlement shall happen on the previous trading day. 6.3 The TM shall retain no more than ₹10,000 (net) of client funds after settlement where explicitly authorised. 6.4 A retention statement shall be dispatched to the client within 24 hours of settlement, and records preserved for five years.",
+      "48.1.1 The TM, after considering the End of the Day (EOD) obligation of funds across all the Exchanges, shall settle the running accounts at the choice of the clients on quarterly and monthly basis, on the dates stipulated by the Stock Exchanges. 48.2 TM may retain 225% of the total margin liability in all the segments across exchanges. 48.4 the entire credit balance of client shall be returned to the client by TM, on the upcoming settlement dates of monthly running account settlement cycle (irrespective of settlement cycle preferred by the client). 48.8 TM shall send the retention statement along with the statement of running accounts to the clients within 5 working days.",
     fallback: {
       steps: [
-        { agent: "Watcher Agent", icon: "radar", finding: "New circular detected on SEBI feed at 10:14 IST. Classified: applies to all Trading Members with retail running accounts. Supersedes CIR/2023/187 paras 5.1–5.4.", confidence: 0.97 },
-        { agent: "Parser Agent", icon: "scan", finding: "Extracted 4 discrete obligations from paras 6.1–6.4, each clause-linked. Detected one cross-reference to Margin Trading circular — resolved and attached.", confidence: 0.94 },
-        { agent: "Interpretation Agent", icon: "scale", finding: "Resolved 'first Friday' scheduling logic incl. trading-holiday fallback (para 6.2). Flagged ₹10,000 retention cap as authorisation-conditional — encoded as guarded rule, not blanket rule.", confidence: 0.91 },
-        { agent: "Mapping Agent", icon: "network", finding: "Mapped obligations to back-office settlement module, banking API and comms gateway. Owners: Ops (settlement), Finance (retention), Service (statements). 2 existing controls reusable, 2 new required.", confidence: 0.93 },
+        { agent: "Watcher Agent", icon: "radar", finding: "Clause 48 detected in the Master Circular for Stock Brokers (…/2025/90, 17 Jun 2025). Applies to all Trading Members holding client running accounts. Supersedes the 2018 'first Friday' rule (clause 47, May-2023 master circular) via amendment …/2023/197.", confidence: 0.97 },
+        { agent: "Parser Agent", icon: "scan", finding: "Segmented clause 48 and extracted discrete obligations 48.1.1 / 48.2 / 48.4 / 48.8, each clause-anchored to a verbatim span. Non-obligation line 48.10 (exchange-scope) classified as context and NOT emitted.", confidence: 0.94 },
+        { agent: "Interpretation Agent", icon: "scale", finding: "Resolved settlement date to the exchange-issued annual calendar (48.1.2). Encoded the 225% retention as a hard cap and the 30-day inactive sweep as a monthly-cycle guard. No clause anchor ⇒ no obligation.", confidence: 0.91 },
+        { agent: "Mapping Agent", icon: "network", finding: "Mapped obligations to the back-office settlement module, risk/margin system, banking API and comms gateway. Owners: Ops, Risk, Client Service. Generated one control + one evidence request per obligation.", confidence: 0.93 },
       ],
       obligations: [
-        { id: "OB-101", clause: "Para 6.1", actor: "Trading Member — Ops", action: "Settle running account of client funds considering EOD obligations", deadline: "First Friday of quarter/month per client preference", frequency: "Quarterly / Monthly", evidence: ["Settlement register", "Bank UTR records", "EOD obligation report"], category: "Client Assets", severity: "critical" },
-        { id: "OB-102", clause: "Para 6.2", actor: "Trading Member — Ops", action: "Advance settlement to previous trading day when first Friday is a holiday", deadline: "Previous trading day", frequency: "Event-driven", evidence: ["Exchange holiday calendar", "Settlement register"], category: "Client Assets", severity: "high" },
-        { id: "OB-103", clause: "Para 6.3", actor: "Trading Member — Finance", action: "Retain no more than ₹10,000 net of client funds post-settlement, only where authorised", deadline: "On each settlement", frequency: "Per settlement", evidence: ["Client authorisation records", "Retention computation sheet"], category: "Client Assets", severity: "critical" },
-        { id: "OB-104", clause: "Para 6.4", actor: "Trading Member — Client Service", action: "Dispatch retention statement to client and preserve records for five years", deadline: "Within 24 hours of settlement", frequency: "Per settlement", evidence: ["Statement dispatch log", "Archival index"], category: "Records", severity: "medium" },
+        { id: "OB-48.1.1", clause: "Clause 48.1.1", actor: "Trading Member — Operations", intermediary: "Stock Broker", action: "Settle the running account of client funds after considering EOD obligations across all exchanges, on the exchange-stipulated dates, per the client's chosen quarterly/monthly cycle.", trigger: "Exchange-stipulated settlement date for the client's cycle", deadline: "On the exchanges' annual settlement-calendar date", frequency: "Quarterly / Monthly (client choice)", evidence: ["Settlement register", "EOD funds-obligation report", "Bank UTR / payout records"], test: "For every client due on the exchange calendar date, a settlement exists that considered EOD obligations across all exchanges, with a matching bank UTR.", sourceSpan: "The TM, after considering the End of the Day (EOD) obligation of funds across all the Exchanges, shall settle the running accounts at the choice of the clients on quarterly and monthly basis, on the dates stipulated by the Stock Exchanges.", sourceUrl: "https://www.sebi.gov.in/legal/master-circulars/jun-2025/master-circular-for-stock-brokers_94623.html", category: "Client Assets", severity: "critical" },
+        { id: "OB-48.2", clause: "Clause 48.2", actor: "Trading Member — Risk", intermediary: "Stock Broker", action: "Cap funds retained after settlement at 225% of the client's total margin liability across all segments/exchanges.", trigger: "On settlement completion", deadline: "At each settlement", frequency: "Per settlement", evidence: ["Margin liability report", "Retention computation sheet"], test: "Post-settlement retained funds for each client ≤ 225% of that client's total margin liability.", sourceSpan: "TM may retain 225% of the total margin liability in all the segments across exchanges.", sourceUrl: "https://www.sebi.gov.in/legal/master-circulars/jun-2025/master-circular-for-stock-brokers_94623.html", category: "Client Assets", severity: "critical" },
+        { id: "OB-48.4", clause: "Clause 48.4", actor: "Trading Member — Operations", intermediary: "Stock Broker", action: "Return the entire credit balance of any client inactive for 30 days on the next MONTHLY settlement date, regardless of the client's chosen cycle.", trigger: "Client credit balance with no transaction for 30 calendar days", deadline: "Upcoming monthly settlement date", frequency: "Monthly sweep", evidence: ["Client inactivity report (30-day)", "Settlement register"], test: "Every client with a credit balance and ≥30 days no activity has full balance returned on the next monthly settlement.", sourceSpan: "the entire credit balance of client shall be returned to the client by TM, on the upcoming settlement dates of monthly running account settlement cycle", sourceUrl: "https://www.sebi.gov.in/legal/master-circulars/jun-2025/master-circular-for-stock-brokers_94623.html", category: "Client Assets", severity: "high" },
+        { id: "OB-48.8", clause: "Clause 48.8", actor: "Trading Member — Client Service", intermediary: "Stock Broker", action: "On settlement, send SMS + email intimation and dispatch the retention statement with the running-account statement within 5 working days.", trigger: "On settlement completion", deadline: "Within 5 working days of settlement", frequency: "Per settlement", evidence: ["SMS + email dispatch log", "Retention statement dispatch record"], test: "Every settlement has SMS+email sent and the retention statement dispatched ≤5 working days later.", sourceSpan: "TM shall send the retention statement along with the statement of running accounts to the clients within 5 working days.", sourceUrl: "https://www.sebi.gov.in/legal/master-circulars/jun-2025/master-circular-for-stock-brokers_94623.html", category: "Records / Client Comms", severity: "medium" },
       ],
       rules: [
-        { id: "R-101", obligationId: "OB-101", name: "quarterly_settlement_check", trigger: "cron: first Friday, per client preference", code: "WHEN calendar.first_friday(client.settlement_cycle)\nASSERT settlement.executed(client) == true\n  AND settlement.considers(eod_obligations)\nEVIDENCE bind(settlement_register, bank_utr, eod_report)\nON FAIL raise(task, severity=CRITICAL, owner=OPS)" },
-        { id: "R-102", obligationId: "OB-102", name: "holiday_advance_settlement", trigger: "event: exchange_holiday(first_friday)", code: "WHEN is_holiday(first_friday)\nASSERT settlement.date == previous_trading_day(first_friday)\nEVIDENCE bind(holiday_calendar, settlement_register)\nON FAIL raise(task, severity=HIGH, owner=OPS)" },
-        { id: "R-103", obligationId: "OB-103", name: "retention_cap_guard", trigger: "on: settlement.completed", code: "WHEN settlement.completed\nASSERT client.retained_funds <= 10000\n  AND client.authorisation.exists()\nEVIDENCE bind(authorisation_record, retention_sheet)\nON FAIL raise(task, severity=CRITICAL, owner=FINANCE)" },
-        { id: "R-104", obligationId: "OB-104", name: "retention_statement_sla", trigger: "on: settlement.completed + 24h", code: "WHEN settlement.completed\nASSERT statement.dispatched_within(hours=24)\n  AND archive.retention_years >= 5\nEVIDENCE bind(dispatch_log, archival_index)\nON FAIL raise(task, severity=MEDIUM, owner=SERVICE)" },
+        { id: "R-48.1.1", obligationId: "OB-48.1.1", name: "running_account_settlement", trigger: "cron: exchange_settlement_calendar(client.cycle)", code: "WHEN calendar.settlement_date(client.cycle)\nASSERT settlement.executed(client) == true\n  AND settlement.considers(eod_obligation, scope=all_exchanges)\nEVIDENCE bind(settlement_register, eod_report, bank_utr)\nON FAIL raise(task, severity=CRITICAL, owner=OPS)" },
+        { id: "R-48.2", obligationId: "OB-48.2", name: "retention_cap_225", trigger: "on: settlement.completed", code: "WHEN settlement.completed(client)\nASSERT client.retained_funds <= 2.25 * client.total_margin_liability\nEVIDENCE bind(margin_liability_report, retention_sheet)\nON FAIL raise(task, severity=CRITICAL, owner=RISK)" },
+        { id: "R-48.4", obligationId: "OB-48.4", name: "inactive_30d_sweep", trigger: "cron: monthly_settlement_date", code: "WHEN client.credit_balance > 0 AND client.no_txn_days >= 30\nASSERT next_monthly_settlement.returns_full_balance(client) == true\nEVIDENCE bind(inactivity_report, settlement_register)\nON FAIL raise(task, severity=HIGH, owner=OPS)" },
+        { id: "R-48.8", obligationId: "OB-48.8", name: "retention_statement_sla", trigger: "on: settlement.completed", code: "WHEN settlement.completed(client)\nASSERT sms.sent(client) AND email.sent(client)\n  AND retention_statement.dispatched_within(working_days=5)\nEVIDENCE bind(sms_log, email_log, dispatch_record)\nON FAIL raise(task, severity=MEDIUM, owner=CLIENT_SERVICE)" },
       ],
     },
     engine: [
-      { obligationId: "OB-101", status: "compliant", boundEvidence: "Settlement register #SR-2026-Q2 · 3 UTRs matched", note: "All 12,408 running accounts settled 03 Jul 2026" },
-      { obligationId: "OB-102", status: "compliant", boundEvidence: "Holiday calendar synced · no conflict this cycle", note: "Next check: 02 Oct 2026" },
-      { obligationId: "OB-103", status: "gap", boundEvidence: null, note: "214 accounts show retention ₹10,000+ without digital authorisation on file", task: "Collect e-authorisations or release excess funds by 18 Jul — assigned to Finance" },
-      { obligationId: "OB-104", status: "pending", boundEvidence: "Dispatch log streaming…", note: "9,980 / 12,408 statements confirmed within SLA" },
+      { obligationId: "OB-48.1.1", status: "compliant", boundEvidence: "Settlement register #SR-2026-Q2 · 12,408 accounts · 3 UTRs sampled & matched", note: "All running accounts settled on the exchange calendar date (04 Jul 2026); EOD obligations considered across NSE+BSE." },
+      { obligationId: "OB-48.2", status: "compliant", boundEvidence: "Margin liability report bound · max retention 214% (≤225% cap)", note: "No client retained above the 225% margin-liability cap this cycle." },
+      { obligationId: "OB-48.4", status: "gap", boundEvidence: null, note: "312 credit-balance clients inactive ≥30 days were NOT returned on the monthly cycle — clause 48.4 breach.", task: "Auto-raised: sweep 312 inactive balances on the next monthly settlement — owner Ops, due 02 Aug 2026. Audit pack generated." },
+      { obligationId: "OB-48.8", status: "pending", boundEvidence: "SMS+email dispatch log streaming · 9,980 / 12,408 within SLA", note: "Retention statements dispatching; SLA clock 5 working days." },
     ],
+    amendment: {
+      headline: "Running-account settlement date rule amended",
+      newCircularRef: "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 (28 Dec 2023)",
+      newCircularUrl: "https://www.sebi.gov.in/legal/circulars/dec-2023/settlement-of-running-account-of-client-s-funds-lying-with-the-stock-broker_80371.html",
+      effective: "Quarterly settlement Jan–Mar 2024 & monthly settlement Jan 2024",
+      gapHours: 6,
+      changed: [
+        {
+          clause: "Clause 48.1.1 (was 47.1.1)",
+          was: "Settle on the first Friday of the quarter/month (single fixed day, 2018 mandate).",
+          now: "Settle on the dates stipulated by the exchanges (Friday and/or Saturday), per a jointly-issued annual settlement calendar.",
+          breaksControl: "R-48.1.1 — trigger cron:first_friday no longer valid; must bind to the exchange annual calendar.",
+          sopEdit: "SOP-OPS-Settlement-Calendar: replace fixed first-Friday schedule with the exchange calendar feed.",
+          owner: "Trading Member — Operations",
+          by: "Before Jan-2024 settlement cycle",
+        },
+      ],
+    },
   },
   {
     id: "cyber-resilience",
