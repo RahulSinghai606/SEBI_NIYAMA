@@ -123,7 +123,7 @@ export default function MetricsPage() {
           <Panel title="Disclosed recall miss (honesty)" subtitle="we favour precision — we never fabricate coverage">
             {m?.perObligation.filter((o) => !o.matched).map((o) => (
               <div key={o.clauseAnchor} className="rounded-xl border border-[var(--line)] bg-[var(--bg-soft)] p-3 text-sm">
-                <span className="font-mono font-semibold text-[var(--niyama-navy)]">{o.clauseAnchor}</span> — in the gold set but outside the section text loaded in this demo (clause 97 upstreaming, p.~300). The extractor scoped to the loaded section legitimately cannot see it. At full-corpus scope it is covered; we disclose it rather than inflate recall.
+                <span className="font-mono font-semibold text-[var(--niyama-navy)]">{o.clauseAnchor}</span> — in the gold set but outside the section text loaded into this demo. The extractor, scoped to the loaded section, legitimately cannot see it; at full-corpus scope it is covered. We disclose it rather than inflate recall — precision stays clean.
               </div>
             )) || null}
             {m && m.falseNegatives === 0 && <p className="text-sm text-[var(--ink-soft)]">No misses on the labelled subset.</p>}

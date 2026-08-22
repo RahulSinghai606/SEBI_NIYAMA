@@ -53,6 +53,11 @@ CLAUSE 76 — Investor Grievance Redressal (SCORES)
 76.3 investor complaints shall be resolved within fifteen working days.
 CLAUSE 14 — Risk Based Supervision
 14.2.1 Stock Brokers getting disabled on account of funds shortages on more than three times in a month shall be inspected.
+CLAUSE 97 — Upstreaming of Client Funds to Clearing Corporations
+97.1 SBs/CMs shall upstream all the clients' clear credit balances to CCs on End of Day (EOD) basis, only in the form of either cash, lien on Fixed Deposit Receipts (FDRs) or pledge of units of Mutual Fund Overnight Schemes (MFOS).
+97.4 All payment requests of the client received on a day shall be processed on or before the next settlement day.
+CLAUSE 62 — Cyber Security (VAPT remediation)
+62.46 Remedial actions on the findings of VAPT shall be completed within three months of submission of the final VAPT report.
 `.trim();
 
 const now = Date.UTC(2026, 7, 15) / 1;
@@ -474,6 +479,84 @@ export const REGISTER_SB: ObligationRecord[] = [
     supersededBy: null,
   },
   {
+    id: "OB-90-97.1",
+    circularRef: SB_SOURCE.ref,
+    clauseAnchor: "Clause 97.1",
+    sourceSpan: "SBs/CMs shall upstream all the clients' clear credit balances to CCs on End of Day (EOD) basis, only in the form of either cash, lien on Fixed Deposit Receipts (FDRs) or pledge of units of Mutual Fund Overnight Schemes (MFOS).",
+    intermediaryCategory: "Stock Broker",
+    ownerRole: "Stock Broker — Treasury",
+    action: "Upstream all clients' clear credit balances to Clearing Corporations on an EOD basis, only as cash, lien on FDRs, or pledge of MF Overnight Scheme units.",
+    trigger: "End of day",
+    frequency: "Daily (EOD)",
+    deadline: "End of day",
+    conditions: ["Permitted instruments only: cash / FDR lien / MFOS pledge"],
+    evidenceContract: [{ artifact: "Upstreaming EOD report", sourceSystem: "Treasury / CC interface", format: "CSV", retention: "7 yrs" }],
+    rule: {
+      id: "R-97.1",
+      trigger: "cron: end_of_day",
+      code: "WHEN eod\nASSERT client.clear_credit.upstreamed_to(CC) == true\n  AND instrument IN {CASH, FDR_LIEN, MFOS_PLEDGE}\nEVIDENCE bind(upstreaming_report, cc_ack)\nON FAIL raise(task, severity=CRITICAL, owner=TREASURY)",
+      test: "Every EOD, all clear client credit balances are upstreamed to the CC in a permitted instrument.",
+    },
+    category: "Client Assets",
+    severity: "critical",
+    status: "extracted",
+    confidence: 0.93,
+    provenance: prov("cl. 97.1"),
+    supersededBy: null,
+  },
+  {
+    id: "OB-90-97.4",
+    circularRef: SB_SOURCE.ref,
+    clauseAnchor: "Clause 97.4",
+    sourceSpan: "All payment requests of the client received on a day shall be processed on or before the next settlement day.",
+    intermediaryCategory: "Stock Broker",
+    ownerRole: "Trading Member — Operations",
+    action: "Process every client payment request on or before the next settlement day.",
+    trigger: "Client payment request received",
+    frequency: "Per request",
+    deadline: "On or before the next settlement day",
+    conditions: [],
+    evidenceContract: [{ artifact: "Payment request register + payout log", sourceSystem: "Back-office / banking", format: "CSV", retention: "7 yrs" }],
+    rule: {
+      id: "R-97.4",
+      trigger: "on: payment_request.received",
+      code: "WHEN payment_request.received(day)\nASSERT payout.processed_on_or_before(next_settlement_day(day))\nEVIDENCE bind(request_register, payout_log)\nON FAIL raise(task, severity=HIGH, owner=OPS)",
+      test: "Each client payment request is paid out by the next settlement day.",
+    },
+    category: "Client Assets",
+    severity: "high",
+    status: "extracted",
+    confidence: 0.9,
+    provenance: prov("cl. 97.4"),
+    supersededBy: null,
+  },
+  {
+    id: "OB-90-62.46",
+    circularRef: SB_SOURCE.ref,
+    clauseAnchor: "Clause 62.46",
+    sourceSpan: "Remedial actions on the findings of VAPT shall be completed within three months of submission of the final VAPT report.",
+    intermediaryCategory: "Stock Broker",
+    ownerRole: "Stock Broker — CISO office",
+    action: "Close all VAPT findings within three months of submitting the final VAPT report.",
+    trigger: "Final VAPT report submitted",
+    frequency: "Per VAPT cycle",
+    deadline: "Within 3 months of report submission",
+    conditions: ["Document compensating controls for any deferral"],
+    evidenceContract: [{ artifact: "VAPT remediation tracker", sourceSystem: "GRC", format: "CSV", retention: "5 yrs" }],
+    rule: {
+      id: "R-62.46",
+      trigger: "on: vapt_report.submitted",
+      code: "WHEN vapt_report.submitted(t0)\nASSERT all(findings).closed_within(months(t0, 3))\nEVIDENCE bind(remediation_tracker, compensating_control_memo)\nON FAIL raise(task, severity=HIGH, owner=CISO)",
+      test: "All VAPT findings are closed (or have documented compensating controls) within 3 months of the report.",
+    },
+    category: "Cyber & Tech",
+    severity: "high",
+    status: "extracted",
+    confidence: 0.9,
+    provenance: prov("cl. 62.46"),
+    supersededBy: null,
+  },
+  {
     id: "OB-90-14.2.1",
     circularRef: SB_SOURCE.ref,
     clauseAnchor: "Clause 14.2.1",
@@ -521,11 +604,15 @@ export const GOLD_SB: GoldObligation[] = [
   { clauseAnchor: "Clause 20.2.2", ownerRole: "Stock Broker — KYC / Records", frequency: "Monthly", severity: "medium", actionKeywords: ["ucc", "upload", "7 working days"] },
   { clauseAnchor: "Clause 76.3", ownerRole: "Stock Broker — Investor Grievance", frequency: "Per complaint", severity: "high", actionKeywords: ["complaint", "fifteen working days", "resolve"] },
   { clauseAnchor: "Clause 14.2.1", ownerRole: "Stock Broker — Compliance", frequency: "Monthly", severity: "high", actionKeywords: ["disablement", "funds-shortage", "inspection"] },
+  { clauseAnchor: "Clause 97.1", ownerRole: "Stock Broker — Treasury", frequency: "Daily", severity: "critical", actionKeywords: ["upstream", "credit balances", "end of day"] },
+  { clauseAnchor: "Clause 97.4", ownerRole: "Trading Member — Operations", frequency: "Per request", severity: "high", actionKeywords: ["payment request", "next settlement day", "process"] },
+  { clauseAnchor: "Clause 62.46", ownerRole: "Stock Broker — CISO office", frequency: "Per VAPT cycle", severity: "high", actionKeywords: ["vapt", "three months", "remedial"] },
   // Honest recall probe: a REAL obligation from the same circular that lives
-  // OUTSIDE the section text loaded into this demo (clause 97 upstreaming, p.~300).
-  // The extractor scoped to SECTION_TEXT legitimately cannot see it → a true,
-  // disclosed recall miss. Precision stays clean; we never fabricate coverage.
-  { clauseAnchor: "Clause 97.1", ownerRole: "Stock Broker / Clearing Member", frequency: "End of day", severity: "critical", actionKeywords: ["upstream", "clearing corporation", "end of day"] },
+  // OUTSIDE the section text loaded into this demo (clause 44 — maintenance of
+  // current accounts in multiple banks). The extractor scoped to SECTION_TEXT
+  // legitimately cannot see it → a disclosed recall miss. Precision stays clean;
+  // we never fabricate coverage.
+  { clauseAnchor: "Clause 44.1", ownerRole: "Stock Broker — Finance", frequency: "Continuous", severity: "medium", actionKeywords: ["current account", "multiple banks", "maintain"] },
 ];
 
 // ── Amendment / supersession (fully verifiable, real diff) ───────────────────

@@ -35,8 +35,14 @@ import {
 } from "lucide-react";
 import { circulars, Circular, AgentStep, Obligation, Rule } from "@/lib/data";
 import { generateAccounts, runControls } from "@/lib/controls";
+import { diffObligations, type ObligationRecord } from "@/lib/obligation";
 
 const CONTROL_RESULTS = runControls(generateAccounts());
+
+// computed amendment diff (beat 6) — produced by diffObligations(), not typed
+const _amendBefore = [{ clauseAnchor: "Clause 48.1.1", action: "Settle on the first Friday of the quarter/month (single fixed day).", deadline: "First Friday of quarter/month", frequency: "Quarterly / Monthly", ownerRole: "Trading Member — Operations", severity: "critical", conditions: [] }] as unknown as ObligationRecord[];
+const _amendAfter = [{ clauseAnchor: "Clause 48.1.1", action: "Settle on the dates stipulated by the exchanges, per the jointly-issued annual settlement calendar.", deadline: "Exchange annual settlement-calendar date", frequency: "Quarterly / Monthly", ownerRole: "Trading Member — Operations", severity: "critical", conditions: [] }] as unknown as ObligationRecord[];
+const AMEND_DIFF = diffObligations(_amendBefore, _amendAfter);
 
 type Phase = "idle" | "compiling" | "review" | "active";
 type Tab = "graph" | "rules";
@@ -84,6 +90,7 @@ export default function DemoPage() {
   const [killed, setKilled] = useState(false);
   const [speaking, setSpeaking] = useState(false);
   const [amendOpen, setAmendOpen] = useState(false);
+  const [attestNote, setAttestNote] = useState("");
   const seqRef = useRef(4181);
 
   // live kill-switch awareness — polled from the ops core
@@ -126,13 +133,13 @@ export default function DemoPage() {
     setAnswer(null);
     setQuestion("");
     setTab("graph");
-    setAmendOpen(false);
+    setAmendOpen(false); setAttestNote("");
     seqRef.current = 4181;
   };
 
   const compile = async () => {
     setPhase("compiling");
-    setAmendOpen(false);
+    setAmendOpen(false); setAttestNote("");
     setSteps([]);
     setVisibleSteps(0);
     setObligations([]);
@@ -234,7 +241,8 @@ export default function DemoPage() {
   };
 
   const signOff = () => {
-    appendLedger(`Rulebook v1.0 approved & activated (${rules.length} rules)`, "Compliance Officer · sign-off");
+    const note = attestNote.trim();
+    appendLedger(note ? `Rulebook v1.0 attested with note: "${note}"` : `Rulebook v1.0 approved & activated (${rules.length} rules)`, "Compliance Officer · sign-off");
     circular.engine.forEach((row) => {
       if (row.status === "compliant") appendLedger(`Evidence bound → ${row.obligationId}`, "Evidence Agent");
       if (row.status === "gap") appendLedger(`GAP detected on ${row.obligationId} → remediation task raised`, "Gap & Audit Agent");
@@ -583,11 +591,17 @@ export default function DemoPage() {
                           <p className="mt-1">{answer}</p>
                         </div>
                       )}
+                      <input
+                        value={attestNote}
+                        onChange={(e) => setAttestNote(e.target.value)}
+                        placeholder="Attestation note / override reason (logged to the audit trail)…"
+                        className="w-full rounded-xl border border-line bg-surface px-4 py-2.5 text-sm outline-none focus:border-sky transition-colors"
+                      />
                       <button
                         onClick={signOff}
                         className="w-full inline-flex items-center justify-center gap-2 rounded-xl bg-ok text-white font-semibold py-3.5 hover:brightness-110 transition-all card-elevate"
                       >
-                        <CheckCheck className="w-5 h-5" /> Approve & activate rulebook v1.0
+                        <CheckCheck className="w-5 h-5" /> {attestNote.trim() ? "Attest with note & activate" : "Approve & activate rulebook v1.0"}
                       </button>
                       <p className="text-[10px] text-ink-faint text-center leading-relaxed">The agent prepares; the Compliance Officer attests. Every assertion traces to a clause; every override is logged with a reason. <b className="text-ink-soft">Nothing is auto-filed to an exchange or SEBI</b> — sign-off is mandatory and written to the immutable trail.</p>
                     </div>
@@ -714,7 +728,13 @@ export default function DemoPage() {
                                   </div>
                                 </div>
                               ))}
-                              <p className="text-[10px] text-ink-faint">This is the gap between issuance and action — which obligations changed, which controls break, who owns each, by when. Measured in hours, not weeks.</p>
+                              <div className="rounded-lg border border-ok/30 bg-ok/[0.04] px-3 py-2 text-[11px] text-ink-soft">
+                                <b className="text-navy">Computed by diffObligations():</b> {AMEND_DIFF.added.length} added · <b className="text-warn">{AMEND_DIFF.modified.length} modified</b> · {AMEND_DIFF.withdrawn.length} withdrawn · {AMEND_DIFF.unchanged} unchanged.
+                                {AMEND_DIFF.modified[0]?.changes.map((ch) => (
+                                  <div key={ch.field} className="mt-1 font-mono-code text-[10px]"><span className="text-ink-faint">{ch.field}:</span> <span className="line-through decoration-alert/50">{ch.before}</span> → <span className="text-ok">{ch.after}</span></div>
+                                ))}
+                              </div>
+                              <p className="text-[10px] text-ink-faint">This is the gap between issuance and action — which obligations changed, which controls break, who owns each, by when. The diff is computed, not typed. Measured in hours, not weeks.</p>
                             </div>
                           )}
                         </div>
