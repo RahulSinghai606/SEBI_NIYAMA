@@ -123,8 +123,8 @@ export const circulars: Circular[] = [
     ],
     amendment: {
       headline: "Running-account settlement date rule amended",
-      newCircularRef: "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197 (28 Dec 2023)",
-      newCircularUrl: "https://www.sebi.gov.in/legal/circulars/dec-2023/settlement-of-running-account-of-client-s-funds-lying-with-trading-member-tm-_80239.html",
+      newCircularRef: "SEBI Master Circular for Stock Brokers 2025 — Clause 48.1.1 (in force; via amendment …/2023/197, 28 Dec 2023)",
+      newCircularUrl: "https://www.sebi.gov.in/legal/master-circulars/jun-2025/master-circular-for-stock-brokers_94623.html",
       effective: "Quarterly settlement Jan–Mar 2024 & monthly settlement Jan 2024",
       gapHours: 6,
       changed: [
