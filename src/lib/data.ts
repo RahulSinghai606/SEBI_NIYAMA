@@ -251,6 +251,84 @@ export const circulars: Circular[] = [
       { obligationId: "OB-403", status: "compliant", boundEvidence: "Invariant attestation · exception log empty (42 days)", note: "0 blocked transactions this quarter" },
     ],
   },
+  {
+    id: "unpaid-securities",
+    ref: "HO/38/11/(9)2026-MIRSD-POD/I/15382/2026",
+    title: "Handling of Client's Unpaid Securities by Trading Members",
+    date: "03 Jul 2026",
+    category: "Client Securities",
+    impact: "High",
+    intermediary: "Stock Broker (Trading Member)",
+    summary:
+      "Amends Paragraph 46 of the Master Circular for Stock Brokers (17 Jun 2025). Pay-out of unpaid securities goes directly to the client's demat with an auto-pledge to CUSPA; TM must have a policy, cap the client's payment window at 5 trading days, release excess pledge next day, invoke with notice, and rely on auto-release at end of the 6th trading day.",
+    excerpt:
+      "46.1 For trades not covered under MTF, the pay-out of unpaid securities shall be directly made to the client's demat account followed by creation of an auto-pledge with the reason \"unpaid\", in favour of a separate \"client unpaid securities pledgee account (CUSPA)\" opened by the TM. 46.2 After creation of pledge, a communication (email/SMS) shall be sent informing the client of the funds obligation and the TM's right to sell such securities on failure. 46.4 The policy must indicate the maximum period (not exceeding five trading days from pay-out) within which the client must meet the payment obligation. 46.7 If pledged value exceeds the maximum pledge value, the TM shall release the pledge on the excess quantity on or before the next trading day. 46.8 On client failure within the timeline, the TM shall invoke the pledge and liquidate, after reasonable notice. 46.10 If neither invoked nor released within five trading days, the pledge is auto-released by depositories at the end of the sixth trading day. 46.11 CUSPA-pledged securities shall not be pledged/transferred to Banks/NBFCs for raising funds.",
+    fallback: {
+      steps: [
+        { agent: "Watcher Agent", icon: "radar", finding: "New circular ref HO/38/11/(9)2026-MIRSD-POD/I/15382/2026, 03 Jul 2026. Amends Paragraph 46 of the Master Circular (17 Jun 2025) — supersedes the 2019 & 2022 handling-of-unpaid-securities provisions. Applies to all Trading Members.", confidence: 0.96 },
+        { agent: "Parser Agent", icon: "scan", finding: "Segmented paras 46.1–46.14; extracted 5 broker-binding obligations, each clause-anchored: direct-demat pay-out + CUSPA auto-pledge, client communication, 5-day payment window in policy, next-day excess release, no re-pledge to Banks/NBFCs.", confidence: 0.93 },
+        { agent: "Interpretation Agent", icon: "scale", finding: "Resolved 'maximum period ≤ 5 trading days from pay-out'; auto-release at end of 6th trading day (46.10) is a depository action → treated as context, not a broker control. Phased effective dates flagged: 46.1–46.11 = 3 months after exchange operational guidelines; 46.12–46.14 = 6 months from issuance.", confidence: 0.9 },
+        { agent: "Mapping Agent", icon: "network", finding: "Mapped to demat pay-out (Ops), CUSPA pledge module (Ops), client-comms (Client Service), RMS policy doc (Risk), and collateral funding controls (Treasury). Owners assigned.", confidence: 0.92 },
+      ],
+      obligations: [
+        { id: "OB-46-1", clause: "Para 46.1", actor: "Trading Member — Operations", intermediary: "Stock Broker", action: "Pay out unpaid securities (non-MTF) directly to the client's demat, then auto-pledge them with reason \"unpaid\" to the TM's CUSPA.", trigger: "Unpaid securities pay-out", deadline: "On pay-out", frequency: "Per pay-out", evidence: ["Demat credit confirmation", "CUSPA auto-pledge record"], test: "Every unpaid non-MTF pay-out lands in the client demat and carries a matching CUSPA \"unpaid\" pledge.", category: "Client Securities", severity: "critical" },
+        { id: "OB-46-2", clause: "Para 46.2", actor: "Trading Member — Client Service", intermediary: "Stock Broker", action: "After pledge creation, send email/SMS informing the client of the funds obligation and the TM's right to sell on failure.", trigger: "Pledge created", deadline: "After pledge creation", frequency: "Per pledge", evidence: ["Email/SMS dispatch log"], test: "Each CUSPA pledge has a client communication logged after creation.", category: "Disclosure", severity: "high" },
+        { id: "OB-46-4", clause: "Para 46.4", actor: "Trading Member — Risk", intermediary: "Stock Broker", action: "Maintain a policy setting the maximum client payment period, not exceeding five trading days from pay-out.", trigger: "Standing (policy)", deadline: "≤ 5 trading days from pay-out", frequency: "Continuous", evidence: ["Unpaid-securities / RMS policy doc", "Client communication of policy"], test: "Policy exists, states a payment window ≤ 5 trading days, and was communicated to clients before implementation.", category: "Risk Policy", severity: "high" },
+        { id: "OB-46-7", clause: "Para 46.7", actor: "Trading Member — Operations", intermediary: "Stock Broker", action: "Where pledged value exceeds the daily maximum pledge value, release the pledge on the excess quantity on or before the next trading day.", trigger: "Pledged value > max pledge value", deadline: "On/before next trading day", frequency: "Daily", evidence: ["Daily max-pledge-value computation", "Excess-release instruction"], test: "Any excess over the daily max pledge value is released by the next trading day.", category: "Client Securities", severity: "high" },
+        { id: "OB-46-11", clause: "Para 46.11", actor: "Trading Member — Treasury", intermediary: "Stock Broker", action: "Do not pledge/transfer CUSPA securities to Banks/NBFCs for raising funds.", trigger: "Standing", deadline: "Continuous", frequency: "Continuous", evidence: ["Collateral funding register", "CUSPA transfer block"], test: "No CUSPA-pledged security appears in any bank/NBFC funding pledge.", category: "Misuse Prevention", severity: "critical" },
+      ],
+      rules: [
+        { id: "R-46-1", obligationId: "OB-46-1", name: "unpaid_direct_demat_cuspa", trigger: "on: payout.unpaid(non_mtf)", code: "WHEN payout.unpaid(non_mtf)\nASSERT securities.credited_to(client_demat)\n  AND cuspa.pledge(reason=\"unpaid\").exists\nEVIDENCE bind(demat_credit, cuspa_pledge_record)\nON FAIL raise(task, severity=CRITICAL, owner=OPS)" },
+        { id: "R-46-2", obligationId: "OB-46-2", name: "client_comm_on_pledge", trigger: "on: cuspa.pledge.created", code: "WHEN cuspa.pledge.created\nASSERT comm.sent(channel IN {email, sms})\n  AND comm.states(funds_obligation, right_to_sell)\nEVIDENCE bind(comm_dispatch_log)\nON FAIL raise(task, severity=HIGH, owner=CLIENT_SERVICE)" },
+        { id: "R-46-4", obligationId: "OB-46-4", name: "payment_window_max_5td", trigger: "cron: policy check", code: "WHEN policy.check\nASSERT policy.payment_window_trading_days <= 5\n  AND policy.communicated_to_clients\nEVIDENCE bind(rms_policy_doc, client_comm)\nON FAIL raise(task, severity=HIGH, owner=RISK)" },
+        { id: "R-46-7", obligationId: "OB-46-7", name: "excess_pledge_release_next_td", trigger: "cron: daily EOD", code: "WHEN day.ends\nFOR pledge WHERE pledge.value > max_pledge_value(client)\nASSERT release(excess_qty).by <= next_trading_day\nEVIDENCE bind(max_pledge_calc, release_instruction)\nON FAIL raise(task, severity=HIGH, owner=OPS)" },
+        { id: "R-46-11", obligationId: "OB-46-11", name: "no_cuspa_bank_nbfc_pledge", trigger: "on: funding.pledge.attempt", code: "WHEN funding.pledge.attempt(counterparty IN {BANK, NBFC})\nASSERT security NOT IN cuspa.pledged\nEVIDENCE bind(collateral_register)\nON FAIL block(txn) AND raise(task, severity=CRITICAL, owner=TREASURY)" },
+      ],
+    },
+    engine: [
+      { obligationId: "OB-46-1", status: "compliant", boundEvidence: "Demat credit + CUSPA pledge matched · 1,204 unpaid pay-outs this quarter", note: "Every unpaid non-MTF pay-out reached client demat with a matching CUSPA pledge." },
+      { obligationId: "OB-46-2", status: "gap", boundEvidence: null, note: "18 CUSPA pledges have no client email/SMS logged (para 46.2 breach).", task: "Auto-raised: dispatch pending client communications for 18 pledges — owner Client Service, due today." },
+      { obligationId: "OB-46-4", status: "compliant", boundEvidence: "RMS policy v3.1 · payment window = 5 trading days · client-notified 12 Aug", note: "Policy within the 5-trading-day cap and communicated." },
+      { obligationId: "OB-46-7", status: "pending", boundEvidence: "EOD max-pledge-value recompute running", note: "Excess-release sweep 63% complete for today's cycle." },
+      { obligationId: "OB-46-11", status: "compliant", boundEvidence: "Collateral funding register · 0 CUSPA securities in bank/NBFC pledges", note: "No misuse of unpaid-securities collateral detected." },
+    ],
+  },
+  {
+    id: "investor-charter",
+    ref: "SEBI/HO/MIRSD/MIRSD-PoD/P/CIR/2026/22",
+    title: "Investor Charter & Monthly Complaints Disclosure — Stock Brokers",
+    date: "2026",
+    category: "Investor Grievance",
+    impact: "Medium",
+    intermediary: "Stock Broker (Trading Member)",
+    summary:
+      "Brokers must display the Investor Charter, publish monthly complaints data (received/resolved/pending), and link SCORES/ODR on their website and app.",
+    excerpt:
+      "2.1 Every Stock Broker shall prominently display the Investor Charter on its website and trading app. 2.2 The broker shall disclose, by the 7th of every month, data on investor complaints — received, resolved and pending — for the previous month. 2.3 The broker shall provide direct links to SEBI SCORES and the ODR platform for grievance redressal.",
+    fallback: {
+      steps: [
+        { agent: "Watcher Agent", icon: "radar", finding: "Circular detected; applies to all Stock Brokers. Disclosure/transparency obligations, website & app surfaces.", confidence: 0.94 },
+        { agent: "Parser Agent", icon: "scan", finding: "Extracted 3 obligations from paras 2.1–2.3: charter display, monthly complaints disclosure, SCORES/ODR links.", confidence: 0.93 },
+        { agent: "Interpretation Agent", icon: "scale", finding: "Interpreted '7th of every month' as a recurring monthly deadline for prior-month data; disclosure must be on a public surface.", confidence: 0.92 },
+        { agent: "Mapping Agent", icon: "network", finding: "Mapped to website CMS, app content, and the complaints/SCORES data source. Owner: Investor Grievance / Compliance.", confidence: 0.9 },
+      ],
+      obligations: [
+        { id: "OB-IC-1", clause: "Para 2.1", actor: "Stock Broker — Compliance", intermediary: "Stock Broker", action: "Prominently display the Investor Charter on the website and trading app.", trigger: "Standing", deadline: "Continuous", frequency: "Continuous", evidence: ["Website screenshot/URL", "App screen reference"], test: "Investor Charter is present and reachable on both website and app.", category: "Disclosure", severity: "medium" },
+        { id: "OB-IC-2", clause: "Para 2.2", actor: "Stock Broker — Investor Grievance", intermediary: "Stock Broker", action: "Publish previous month's complaints data (received/resolved/pending) by the 7th.", trigger: "Month end", deadline: "By 7th of each month", frequency: "Monthly", evidence: ["Monthly complaints disclosure page", "SCORES data extract"], test: "Each month's complaints table is published on or before the 7th.", category: "Investor Grievance", severity: "medium" },
+        { id: "OB-IC-3", clause: "Para 2.3", actor: "Stock Broker — Compliance", intermediary: "Stock Broker", action: "Provide direct links to SEBI SCORES and the ODR platform.", trigger: "Standing", deadline: "Continuous", frequency: "Continuous", evidence: ["Live SCORES link", "Live ODR link"], test: "Working SCORES and ODR links are present on the grievance surface.", category: "Investor Grievance", severity: "medium" },
+      ],
+      rules: [
+        { id: "R-IC-1", obligationId: "OB-IC-1", name: "charter_display", trigger: "cron: weekly surface check", code: "WHEN surface.check\nASSERT website.has(investor_charter) AND app.has(investor_charter)\nEVIDENCE bind(url_snapshot, app_ref)\nON FAIL raise(task, severity=MEDIUM, owner=COMPLIANCE)" },
+        { id: "R-IC-2", obligationId: "OB-IC-2", name: "monthly_complaints_by_7th", trigger: "cron: monthly, 7th", code: "WHEN month.day == 7\nASSERT complaints_disclosure.published(prev_month)\nEVIDENCE bind(disclosure_page, scores_extract)\nON FAIL raise(task, severity=MEDIUM, owner=GRIEVANCE)" },
+        { id: "R-IC-3", obligationId: "OB-IC-3", name: "scores_odr_links", trigger: "cron: weekly surface check", code: "WHEN surface.check\nASSERT links.valid(SCORES) AND links.valid(ODR)\nEVIDENCE bind(scores_link, odr_link)\nON FAIL raise(task, severity=MEDIUM, owner=COMPLIANCE)" },
+      ],
+    },
+    engine: [
+      { obligationId: "OB-IC-1", status: "compliant", boundEvidence: "Charter live on web + app · last checked today", note: "Present on both surfaces." },
+      { obligationId: "OB-IC-2", status: "compliant", boundEvidence: "July complaints table published 05 Aug", note: "Filed 2 days before the 7th deadline." },
+      { obligationId: "OB-IC-3", status: "gap", boundEvidence: null, note: "ODR platform link returns 404 on the app grievance page.", task: "Auto-raised: fix ODR link on app — owner Compliance, due today." },
+    ],
+  },
 ];
 
 export const agentRoster = [
