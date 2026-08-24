@@ -73,7 +73,26 @@ export default function OpsConsole() {
   const poll = useCallback(async () => {
     try {
       const res = await fetch("/api/ops/metrics", { cache: "no-store" });
-      setM(await res.json());
+      const server: Metrics = await res.json();
+      // merge session telemetry (localStorage) — serverless memory is per-instance,
+      // so the run you just did in the Command Center lives in the browser.
+      let local: { counters?: Record<string, number>; latencies?: number[]; traces?: Metrics["traces"]; events?: Metrics["events"] } | null = null;
+      try { local = JSON.parse(localStorage.getItem("niyama_ops") || "null"); } catch {}
+      if (local && (local.counters?.requests ?? 0) > 0) {
+        const counters = { ...server.counters };
+        for (const k of ["requests", "llmCalls", "piiScans", "blockedByKill"]) counters[k] = (server.counters?.[k] || 0) + (local.counters?.[k] || 0);
+        const lat = (local.latencies || []).slice().sort((a, b) => a - b);
+        const pc = (p: number) => (lat.length ? lat[Math.min(lat.length - 1, Math.floor((p / 100) * lat.length))] : 0);
+        setM({
+          ...server,
+          counters,
+          traces: [...(local.traces || []), ...(server.traces || [])].slice(0, 6),
+          events: [...(local.events || []), ...(server.events || [])].slice(0, 30),
+          p50: server.p50 || pc(50),
+          p95: server.p95 || pc(95),
+          p99: server.p99 || pc(99),
+        });
+      } else setM(server);
     } catch {}
   }, []);
 

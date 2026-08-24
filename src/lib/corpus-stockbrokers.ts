@@ -619,8 +619,8 @@ export const GOLD_SB: GoldObligation[] = [
 // Running-account settlement DATE rule: "first Friday" → exchange annual calendar.
 export const AMENDMENT = {
   title: "Running-account settlement date rule",
-  oldCircular: { ref: "Master Circular for Stock Brokers, 17 May 2023 — clause 47.1.1 (originating 2018 mandate)", url: "https://www.sebi.gov.in/legal/master-circulars/may-2023/master-circular-for-stock-brokers_71219.html" },
-  newCircular: { ref: "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197, 28 Dec 2023 (now clause 48.1.1 in the 2025 master circular)", url: "https://www.sebi.gov.in/legal/circulars/dec-2023/settlement-of-running-account-of-client-s-funds-lying-with-the-stock-broker_80371.html" },
+  oldCircular: { ref: "Master Circular for Stock Brokers, 17 May 2023 — clause 47.1.1 (originating 2018 mandate)", url: "https://www.sebi.gov.in/legal/master-circulars/may-2023/master-circular-for-stock-brokers_71265.html" },
+  newCircular: { ref: "SEBI/HO/MIRSD/MIRSD-PoD1/P/CIR/2023/197, 28 Dec 2023 (now clause 48.1.1 in the 2025 master circular)", url: "https://www.sebi.gov.in/legal/circulars/dec-2023/settlement-of-running-account-of-client-s-funds-lying-with-trading-member-tm-_80239.html" },
   effective: "Quarterly settlement Jan–Mar 2024 & monthly settlement Jan 2024",
   before: {
     clauseAnchor: "Clause 47.1.1 (2023)",
