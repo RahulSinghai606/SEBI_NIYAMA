@@ -43,12 +43,55 @@ export async function reason(input: { system: string; user: string; maxTokens?: 
 }
 
 export function extractJson<T>(raw: string): T | null {
+  const start = raw.indexOf("{");
+  if (start === -1) return null;
+  const body = raw.slice(start);
+  // 1) clean parse
   try {
-    const start = raw.indexOf("{");
-    const end = raw.lastIndexOf("}");
-    if (start === -1 || end === -1) return null;
-    return JSON.parse(raw.slice(start, end + 1)) as T;
+    return JSON.parse(body.slice(0, body.lastIndexOf("}") + 1)) as T;
+  } catch {
+    /* fall through to repair */
+  }
+  // 2) repair a TRUNCATED response (LLM hit the token cap mid-array): drop the
+  //    trailing incomplete element and close every open string / bracket.
+  try {
+    return JSON.parse(repairTruncatedJson(body)) as T;
   } catch {
     return null;
   }
+}
+
+function repairTruncatedJson(s: string): string {
+  const stack: string[] = [];
+  let inStr = false;
+  let esc = false;
+  let lastSafe = -1; // index just after a completed array element or object member
+  for (let i = 0; i < s.length; i++) {
+    const c = s[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (c === "\\") esc = true;
+      else if (c === '"') inStr = false;
+      continue;
+    }
+    if (c === '"') { inStr = true; continue; }
+    if (c === "{" || c === "[") stack.push(c);
+    else if (c === "}" || c === "]") stack.pop();
+    // a comma or a closing bracket at any depth marks a point we can safely cut back to
+    if (c === "," || c === "}" || c === "]") lastSafe = i;
+  }
+  // trim any half-written trailing token back to the last completed element,
+  // then re-scan to know which brackets remain open.
+  let out = lastSafe >= 0 ? s.slice(0, lastSafe + 1).replace(/,\s*$/, "") : s;
+  const open: string[] = [];
+  let str = false, e2 = false;
+  for (let i = 0; i < out.length; i++) {
+    const c = out[i];
+    if (str) { if (e2) e2 = false; else if (c === "\\") e2 = true; else if (c === '"') str = false; continue; }
+    if (c === '"') str = true;
+    else if (c === "{" || c === "[") open.push(c);
+    else if (c === "}" || c === "]") open.pop();
+  }
+  for (let i = open.length - 1; i >= 0; i--) out += open[i] === "{" ? "}" : "]";
+  return out;
 }

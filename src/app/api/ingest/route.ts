@@ -27,7 +27,8 @@ Respond with STRICT JSON only (no markdown fences):
  "obligations": [{"id": "OB-x", "clause": string (e.g. "Para 6.1" — must match the text), "actor": string, "action": string, "deadline": string, "frequency": string, "evidence": [string], "category": string, "severity": "critical"|"high"|"medium"}],
  "rules": [{"id": "R-x", "obligationId": "OB-x", "name": snake_case string, "trigger": string, "code": string (the DSL, with \\n line breaks)}]
 }
-Extract obligations ONLY from the circular text given. Clause references must match the text. One rule per obligation. If a clause binds an entity other than the intermediary, classify it as context in the Interpretation finding and do not emit it as an obligation.`;
+Extract obligations ONLY from the circular text given. Clause references must match the text. One rule per obligation. If a clause binds an entity other than the intermediary, classify it as context in the Interpretation finding and do not emit it as an obligation.
+Extract EVERY distinct obligation in the circular — do not stop early. To keep the JSON compact and complete, keep each "action" under 220 characters, each "finding" under 320 characters, and each rule "code" under 300 characters. Output valid, complete JSON.`;
 
 function stripHtml(html: string): string {
   return html
@@ -151,7 +152,7 @@ ${text}
 Run the 4-agent pipeline and compile Rules-as-Code from THIS text. Return the JSON.`;
 
   sT = Date.now();
-  const raw = await reason({ system: SYSTEM, user, maxTokens: 3200 });
+  const raw = await reason({ system: SYSTEM, user, maxTokens: 8000 });
   s.counters.llmCalls++;
   if (raw) s.counters.llmTokensOut += Math.round(raw.length / 4);
   spans.push({ name: "agents.reason · Watcher→Parser→Interpretation→Mapping", startMs: sT - t0, durMs: Date.now() - sT, status: raw ? "ok" : "error", note: raw ? "4 agents · live extraction from ingested text" : "LLM unavailable" });
