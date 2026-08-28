@@ -121,6 +121,7 @@ export default function DemoPage() {
   const [ingestUrl, setIngestUrl] = useState("");
   const [ingesting, setIngesting] = useState(false);
   const [ingestErr, setIngestErr] = useState<string | null>(null);
+  const [ingested, setIngested] = useState<Circular[]>([]); // live-ingested circulars, pinned to the top of the feed
   const seqRef = useRef(4181);
 
   // live kill-switch awareness — polled from the ops core
@@ -165,6 +166,16 @@ export default function DemoPage() {
     setTab("graph");
     setAmendOpen(false); setAttestNote("");
     seqRef.current = 4181;
+    // re-selecting a live-ingested circular restores its compiled view instantly
+    if (String(c.id).startsWith("ingested") && c.fallback?.obligations?.length) {
+      setSteps(c.fallback.steps);
+      setVisibleSteps(c.fallback.steps.length);
+      setObligations(c.fallback.obligations);
+      setRules(c.fallback.rules);
+      setLive(true);
+      setPhase("review");
+      appendLedger(`Circular ${c.ref} ingested from live source`, "Watcher Agent");
+    }
   };
 
   const compile = async () => {
@@ -230,14 +241,17 @@ export default function DemoPage() {
       const d = await res.json();
       if (!res.ok || d.error) { setIngestErr(d.message || d.error || "Ingestion failed."); setPhase("idle"); setIngesting(false); return; }
       const c = {
-        id: "ingested", ref: d.ref, title: d.title, date: d.date, category: d.category,
+        id: `ingested-${Date.now()}`, ref: d.ref, title: d.title, date: d.date, category: d.category,
         impact: "High", intermediary: "Stock Broker",
         summary: `Ingested live from ${d.sourceUrl || "uploaded PDF"}`,
         excerpt: d.excerpt, sourceUrl: d.sourceUrl,
         fallback: { steps: d.steps, obligations: d.obligations, rules: d.rules },
         engine: [] as Circular["engine"],
-      };
-      setCircular(c as unknown as Circular);
+      } as unknown as Circular;
+      // pin it to the top of the regulatory feed and select it
+      setIngested((prev) => [c, ...prev.filter((x) => x.ref !== c.ref)]);
+      setCircular(c);
+      setIngestUrl("");
       appendLedger(`Circular ${d.ref} ingested from ${d.sourceUrl || "uploaded PDF"}`, "Watcher Agent");
       setSteps(d.steps); setObligations(d.obligations); setRules(d.rules); setLive(true);
       writeOpsTelemetry(d.ref, true, Date.now() - t0, d.steps, d.obligations.length);
@@ -430,22 +444,26 @@ export default function DemoPage() {
           </div>
 
           <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-ink-faint px-1">Regulatory feed · SEBI</p>
-          {circulars.map((c) => {
+          {[...ingested, ...circulars].map((c) => {
             const active = c.id === circular.id;
+            const isLive = String(c.id).startsWith("ingested");
             return (
               <button
                 key={c.id}
                 onClick={() => selectCircular(c)}
                 className={`w-full text-left rounded-2xl p-4 transition-all border ${
-                  active ? "bg-surface border-sky card-elevate -translate-y-0.5" : "glass border-transparent hover:border-line hover:bg-white"
+                  active ? "bg-surface border-sky card-elevate -translate-y-0.5" : isLive ? "bg-sky/[0.04] border-sky/30 hover:border-sky" : "glass border-transparent hover:border-line hover:bg-white"
                 }`}
               >
                 <div className="flex items-start gap-3">
-                  <span className="mt-0.5 p-1.5 rounded-lg bg-blue/8 text-blue shrink-0">
+                  <span className={`mt-0.5 p-1.5 rounded-lg shrink-0 ${isLive ? "bg-ok/10 text-ok" : "bg-blue/8 text-blue"}`}>
                     <Landmark className="w-4 h-4" />
                   </span>
                   <div className="min-w-0">
-                    <p className="font-semibold text-navy text-sm leading-snug">{c.title}</p>
+                    <div className="flex items-center gap-1.5">
+                      {isLive && <span className="inline-flex items-center gap-1 text-[8px] font-bold tracking-wider text-ok bg-ok/10 rounded-full px-1.5 py-0.5"><span className="w-1 h-1 rounded-full bg-ok animate-pulse" />LIVE</span>}
+                      <p className="font-semibold text-navy text-sm leading-snug">{c.title}</p>
+                    </div>
                     <p className="text-[10px] font-mono-code text-ink-faint mt-1 truncate">{c.ref}</p>
                   </div>
                 </div>
