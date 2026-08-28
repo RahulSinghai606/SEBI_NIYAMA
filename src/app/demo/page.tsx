@@ -32,6 +32,9 @@ import {
   Volume2,
   Activity,
   OctagonX,
+  Sparkles,
+  Upload,
+  Loader2,
 } from "lucide-react";
 import { circulars, Circular, AgentStep, Obligation, Rule } from "@/lib/data";
 import { generateAccounts, runControls } from "@/lib/controls";
@@ -115,6 +118,9 @@ export default function DemoPage() {
   const [speaking, setSpeaking] = useState(false);
   const [amendOpen, setAmendOpen] = useState(false);
   const [attestNote, setAttestNote] = useState("");
+  const [ingestUrl, setIngestUrl] = useState("");
+  const [ingesting, setIngesting] = useState(false);
+  const [ingestErr, setIngestErr] = useState<string | null>(null);
   const seqRef = useRef(4181);
 
   // live kill-switch awareness — polled from the ops core
@@ -204,6 +210,43 @@ export default function DemoPage() {
     // it even on serverless (where server memory is per-instance).
     writeOpsTelemetry(circular.ref, isLive, Date.now() - t0, usedSteps, usedObl.length);
     setPendingReveal(true);
+  };
+
+  // Live ingestion — fetch ANY SEBI circular (URL or PDF), extract its text, and
+  // run the same 4-agent compiler over the real document.
+  const runIngest = async (opts: { url?: string; file?: File }) => {
+    setIngestErr(null);
+    if (killed) { setIngestErr("Kill switch engaged — release it first."); return; }
+    setIngesting(true);
+    setPhase("compiling");
+    setSteps([]); setVisibleSteps(0); setObligations([]); setRules([]); setLedger([]); setAnswer(null);
+    seqRef.current = 4181;
+    const t0 = Date.now();
+    try {
+      const res = opts.file
+        ? await fetch("/api/ingest", { method: "POST", body: (() => { const fd = new FormData(); fd.append("file", opts.file!); return fd; })() })
+        : await fetch("/api/ingest", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ url: opts.url }) });
+      if (res.status === 423) { setKilled(true); setIngestErr("Kill switch engaged — no agent executed."); setPhase("idle"); setIngesting(false); return; }
+      const d = await res.json();
+      if (!res.ok || d.error) { setIngestErr(d.message || d.error || "Ingestion failed."); setPhase("idle"); setIngesting(false); return; }
+      const c = {
+        id: "ingested", ref: d.ref, title: d.title, date: d.date, category: d.category,
+        impact: "High", intermediary: "Stock Broker",
+        summary: `Ingested live from ${d.sourceUrl || "uploaded PDF"}`,
+        excerpt: d.excerpt, sourceUrl: d.sourceUrl,
+        fallback: { steps: d.steps, obligations: d.obligations, rules: d.rules },
+        engine: [] as Circular["engine"],
+      };
+      setCircular(c as unknown as Circular);
+      appendLedger(`Circular ${d.ref} ingested from ${d.sourceUrl || "uploaded PDF"}`, "Watcher Agent");
+      setSteps(d.steps); setObligations(d.obligations); setRules(d.rules); setLive(true);
+      writeOpsTelemetry(d.ref, true, Date.now() - t0, d.steps, d.obligations.length);
+      setPendingReveal(true);
+    } catch {
+      setIngestErr("Could not reach that source. Check the link, or upload the PDF directly.");
+      setPhase("idle");
+    }
+    setIngesting(false);
   };
 
   // staggered reveal of pipeline steps
@@ -356,6 +399,36 @@ export default function DemoPage() {
       <div className="mx-auto max-w-[1560px] px-4 sm:px-6 py-6 grid grid-cols-1 lg:grid-cols-[300px_1fr_1.05fr] gap-5">
         {/* ── LEFT: circular feed ── */}
         <aside className="space-y-3">
+          {/* live ingestion — paste any SEBI circular URL or upload a PDF */}
+          <div className="rounded-2xl border border-sky/40 bg-sky/[0.05] p-3.5 space-y-2.5">
+            <p className="text-[11px] font-bold tracking-[0.16em] uppercase text-blue flex items-center gap-1.5">
+              <Sparkles className="w-3.5 h-3.5" /> Ingest a live circular
+            </p>
+            <input
+              value={ingestUrl}
+              onChange={(e) => setIngestUrl(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter" && ingestUrl.trim()) runIngest({ url: ingestUrl.trim() }); }}
+              placeholder="Paste a SEBI circular link (page or PDF)…"
+              className="w-full rounded-xl border border-line bg-surface px-3 py-2 text-[13px] outline-none focus:border-sky transition-colors"
+            />
+            <div className="flex gap-2">
+              <button
+                onClick={() => runIngest({ url: ingestUrl.trim() })}
+                disabled={ingesting || !ingestUrl.trim()}
+                className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl bg-blue text-white text-[13px] font-semibold py-2.5 hover:bg-navy transition-colors disabled:opacity-50"
+              >
+                {ingesting ? <Loader2 className="w-4 h-4 animate-spin" /> : <Play className="w-4 h-4" />}
+                {ingesting ? "Fetching…" : "Fetch & compile"}
+              </button>
+              <label className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-line bg-surface px-3 text-[13px] font-semibold text-ink-soft hover:border-sky cursor-pointer transition-colors">
+                <Upload className="w-4 h-4" /> PDF
+                <input type="file" accept="application/pdf" hidden onChange={(e) => { const f = e.target.files?.[0]; if (f) runIngest({ file: f }); e.target.value = ""; }} />
+              </label>
+            </div>
+            {ingestErr && <p className="text-[11px] text-alert flex items-start gap-1.5"><AlertTriangle className="w-3.5 h-3.5 shrink-0 mt-0.5" />{ingestErr}</p>}
+            <p className="text-[10px] text-ink-faint leading-snug">Fetches the real document, extracts the text, and runs the four-agent compiler live. SEBI page links auto-resolve to the PDF.</p>
+          </div>
+
           <p className="text-[11px] font-bold tracking-[0.22em] uppercase text-ink-faint px-1">Regulatory feed · SEBI</p>
           {circulars.map((c) => {
             const active = c.id === circular.id;
