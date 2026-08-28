@@ -499,7 +499,7 @@ export default function DemoPage() {
               <p className="text-[11px] font-bold tracking-[0.2em] uppercase text-sky mb-2 flex items-center gap-1.5">
                 <FileText className="w-3.5 h-3.5" /> Circular text (extract)
               </p>
-              <p className="text-[13px] leading-relaxed text-ink-soft font-serif max-h-40 overflow-y-auto thin-scroll pr-2">{circular.excerpt}</p>
+              <p className="text-[13px] leading-relaxed text-ink-soft font-serif max-h-64 overflow-y-auto thin-scroll pr-2 whitespace-pre-wrap">{circular.excerpt}</p>
               {phase === "compiling" && <span className="scan-line" />}
             </div>
 

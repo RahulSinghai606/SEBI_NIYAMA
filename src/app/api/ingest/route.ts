@@ -173,7 +173,7 @@ Run the 4-agent pipeline and compile Rules-as-Code from THIS text. Return the JS
     title: meta.title,
     date: meta.date || "ingested",
     category: "Ingested live",
-    excerpt: text.slice(0, 1400),
+    excerpt: text, // full extracted circular text (the extract box scrolls)
     sourceUrl: kind.startsWith("pdf-upload") ? "" : source,
     steps: parsed.steps ?? [],
     obligations: parsed.obligations,
